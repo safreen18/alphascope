@@ -1,4 +1,4 @@
-const API = "http://localhost:3000";
+const API = "https://alphascope-z4rz.onrender.com";
 const userId = "1710140755";
 
 // BUTTONS

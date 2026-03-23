@@ -1,100 +1,131 @@
-console.log("🔥 AlphaScope Server Loaded");
+console.log("🔥 AlphaScope Alpha Engine Loaded");
 
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
 // =========================
-// CONFIG (PUT YOUR KEYS)
+// ENV CONFIG
 // =========================
-const NOWPAYMENTS_API_KEY = "25T3Q4E-BPR4KMH-PK4HA2V-DZ4F1TE";
-const TELEGRAM_BOT_TOKEN = "8760490176:AAGNBjqvDiDa5nSId2nOC-bsuTBKIrq952c";
+const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 // =========================
-// USERS (TEMP DATABASE)
+// TEMP DATABASE
 // =========================
 const users = {
-  "1710140755": {
-    tier: "free",
-    chatId: "1710140755"
-  }
+  "1710140755": { tier: "premium", chatId: "1710140755" }
 };
 
-// =========================
-// PAYMENT TRACKING
-// =========================
 const payments = {};
-
-// =========================
-// SEARCH TERMS
-// =========================
-const SEARCH_TERMS = ["eth", "bnb", "usdc", "pepe", "inu"];
-
-// =========================
-// MEMORY (ANTI-SPAM)
-// =========================
 const sentSignals = new Set();
 
 // =========================
-// FETCH PAIRS
+// MEMORY STORE (for spikes)
 // =========================
-async function fetchAllPairs() {
-  let allPairs = [];
+const volumeMemory = {};
 
-  for (const term of SEARCH_TERMS) {
-    try {
-      const res = await axios.get(`https://api.dexscreener.com/latest/dex/search?q=${term}`);
-      allPairs = allPairs.concat(res.data.pairs);
-    } catch (err) {
-      console.log("Search error:", term);
+// =========================
+// FETCH TOKENS
+// =========================
+async function fetchPairs() {
+  try {
+    const res = await axios.get(
+      "https://api.dexscreener.com/latest/dex/search?q=eth"
+    );
+    return res.data.pairs || [];
+  } catch (err) {
+    console.log("DEX ERROR:", err.message);
+    return [];
+  }
+}
+
+// =========================
+// CALCULATE ALPHA SCORE
+// =========================
+function calculateScore(pair, spike, ageMinutes) {
+  let score = 0;
+
+  if (pair.liquidity?.usd > 20000) score += 20;
+  if (pair.volume?.h24 > 50000) score += 20;
+  if (spike > 2) score += 25;
+  if (pair.priceChange?.h1 > 5) score += 15;
+  if (ageMinutes < 60) score += 20;
+
+  return Math.min(score, 100);
+}
+
+// =========================
+// MAIN ENGINE
+// =========================
+async function getAlphaSignals() {
+  const pairs = await fetchPairs();
+
+  const signals = [];
+
+  for (const pair of pairs) {
+    if (!pair.baseToken || !pair.volume || !pair.liquidity) continue;
+
+    const id = pair.pairAddress;
+
+    const currentVolume = pair.volume.h24 || 0;
+    const oldVolume = volumeMemory[id] || currentVolume;
+
+    const spike = currentVolume / (oldVolume || 1);
+
+    // Save current for next comparison
+    volumeMemory[id] = currentVolume;
+
+    // Token age
+    const createdAt = pair.pairCreatedAt || Date.now();
+    const ageMinutes = (Date.now() - createdAt) / 60000;
+
+    // FILTER (STRONG)
+    if (
+      pair.liquidity.usd < 10000 ||
+      currentVolume < 20000 ||
+      spike < 1.5
+    ) {
+      continue;
     }
+
+    const score = calculateScore(pair, spike, ageMinutes);
+
+    if (score < 60) continue;
+
+    signals.push({
+      id,
+      name: pair.baseToken.name,
+      symbol: pair.baseToken.symbol,
+      price: pair.priceUsd,
+      liquidity: pair.liquidity.usd,
+      volume: currentVolume,
+      spike: spike.toFixed(2),
+      age: ageMinutes.toFixed(0),
+      score,
+      url: pair.url
+    });
   }
 
-  return allPairs;
+  return signals.slice(0, 5);
 }
 
 // =========================
-// SIGNAL ENGINE
-// =========================
-async function getEarlySignals() {
-  const pairs = await fetchAllPairs();
-
-  const filtered = pairs.filter(pair => {
-    return (
-      pair.liquidity?.usd > 5000 &&
-      pair.volume?.h24 > 10000 &&
-      pair.priceChange?.h1 > 0
-    );
-  });
-
-  return filtered.slice(0, 5).map(pair => ({
-    id: pair.pairAddress,
-    name: pair.baseToken.name,
-    symbol: pair.baseToken.symbol,
-    price: pair.priceUsd,
-    liquidity: pair.liquidity.usd,
-    volume: pair.volume.h24,
-    change_1h: pair.priceChange.h1,
-    url: pair.url
-  }));
-}
-
-// =========================
-// TELEGRAM
+// TELEGRAM ALERT
 // =========================
 async function sendTelegram(chatId, token) {
-  const message = `
+  const msg = `
 🚀 AlphaScope Signal
 
 ${token.name} (${token.symbol})
-Price: $${token.price}
-1H: ${token.change_1h}%
-Liquidity: $${token.liquidity}
+💰 Price: $${token.price}
+⚡ Spike: ${token.spike}x
+🧠 Score: ${token.score}/100
+⏱ Age: ${token.age} min
 
 ${token.url}
 `;
@@ -102,43 +133,53 @@ ${token.url}
   try {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: chatId,
-      text: message
+      text: msg
     });
-
-    console.log("📩 Sent:", token.name);
-
   } catch (err) {
-    console.error("Telegram Error:", err.message);
+    console.log("Telegram error");
   }
 }
 
 // =========================
-// AUTO SCANNER
+// AUTO SCAN LOOP
 // =========================
 setInterval(async () => {
-  console.log("🔍 Scanning...");
+  console.log("🔍 Alpha Scanning...");
 
-  const signals = await getEarlySignals();
+  const signals = await getAlphaSignals();
 
   for (const token of signals) {
     if (!sentSignals.has(token.id)) {
       sentSignals.add(token.id);
 
-      console.log("🚀 Signal:", token.name);
+      console.log("🚀 Alpha Signal:", token.name);
 
-      for (const userId in users) {
-        if (users[userId].tier === "premium") {
-          await sendTelegram(users[userId].chatId, token);
+      for (const uid in users) {
+        if (users[uid].tier === "premium") {
+          await sendTelegram(users[uid].chatId, token);
         }
       }
     }
   }
-
 }, 20000);
 
 // =========================
-// CREATE PAYMENT (GET)
+// API ROUTES
 // =========================
+
+// USER
+app.get('/user', (req, res) => {
+  const userId = req.query.userId;
+  res.json(users[userId] || { tier: "free" });
+});
+
+// SIGNALS
+app.get('/early', async (req, res) => {
+  const signals = await getAlphaSignals();
+  res.json({ signals });
+});
+
+// PAYMENT
 app.get('/create-payment', async (req, res) => {
   const userId = req.query.userId || "1710140755";
 
@@ -150,8 +191,6 @@ app.get('/create-payment', async (req, res) => {
         price_currency: "usd",
         order_id: userId,
         order_description: "AlphaScope Premium",
-        success_url: "https://google.com",
-        cancel_url: "https://google.com"
       },
       {
         headers: {
@@ -162,31 +201,23 @@ app.get('/create-payment', async (req, res) => {
     );
 
     const invoice = response.data;
-
     payments[invoice.id] = userId;
 
-    res.json({
-      payment_url: invoice.invoice_url
-    });
+    res.json({ payment_url: invoice.invoice_url });
 
   } catch (err) {
-    console.error("Payment Error:", err.response?.data || err.message);
     res.status(500).send("Payment failed");
   }
 });
 
-// =========================
-// WEBHOOK (AUTO UPGRADE)
-// =========================
+// WEBHOOK
 app.post('/webhook', (req, res) => {
   const payment = req.body;
-
-  console.log("Webhook:", payment);
 
   if (payment.payment_status === "finished") {
     const userId = payments[payment.invoice_id];
 
-    if (userId && users[userId]) {
+    if (users[userId]) {
       users[userId].tier = "premium";
       console.log("✅ USER UPGRADED:", userId);
     }
@@ -195,36 +226,12 @@ app.post('/webhook', (req, res) => {
   res.sendStatus(200);
 });
 
-// =========================
-// USER CHECK
-// =========================
-app.get('/user', (req, res) => {
-  const userId = req.query.userId;
-  res.json(users[userId] || { tier: "free" });
-});
-
-// =========================
-// EARLY SIGNALS API (IMPORTANT FOR EXTENSION)
-// =========================
-app.get('/early', async (req, res) => {
-  try {
-    const signals = await getEarlySignals();
-    res.json({ signals });
-  } catch (err) {
-    res.json({ signals: [] });
-  }
-});
-
-// =========================
 // ROOT
-// =========================
 app.get('/', (req, res) => {
-  res.send("AlphaScope SaaS LIVE 🚀");
+  res.send("AlphaScope Alpha Engine LIVE 🚀");
 });
 
-// =========================
-// START SERVER (RENDER FIX)
-// =========================
+// START SERVER
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
