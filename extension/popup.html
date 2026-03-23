@@ -2,59 +2,83 @@
 <html>
 <head>
   <title>AlphaScope</title>
+
   <style>
     body {
-      width: 320px;
-      font-family: Arial;
-      background: #0f172a;
-      color: white;
-      padding: 10px;
+      width: 340px;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #020617, #0f172a);
+      color: #e2e8f0;
+      padding: 12px;
     }
 
     h2 {
-      margin-bottom: 10px;
+      text-align: center;
+      margin-bottom: 12px;
+      font-size: 20px;
+      color: #38bdf8;
     }
 
     button {
       width: 100%;
-      margin: 5px 0;
+      margin: 6px 0;
       padding: 10px;
+      border-radius: 10px;
       border: none;
-      border-radius: 6px;
-      background: #1d4ed8;
-      color: white;
+      font-weight: bold;
       cursor: pointer;
+      background: linear-gradient(90deg, #2563eb, #38bdf8);
+      color: white;
+      transition: 0.2s;
     }
 
     button:hover {
-      background: #2563eb;
+      opacity: 0.85;
     }
 
     #upgradeBtn {
-      background: #16a34a;
-      font-weight: bold;
-    }
-
-    #upgradeBtn:hover {
-      background: #22c55e;
+      background: linear-gradient(90deg, #16a34a, #4ade80);
     }
 
     #output {
       margin-top: 10px;
       font-size: 12px;
-      white-space: pre-line;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.05);
+      padding: 10px;
+      margin-top: 8px;
+      border-radius: 10px;
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .token {
+      font-size: 14px;
+      font-weight: bold;
+      color: #38bdf8;
+    }
+
+    .score {
+      color: #22c55e;
+      font-weight: bold;
+    }
+
+    .meta {
+      font-size: 11px;
+      opacity: 0.8;
     }
   </style>
 </head>
+
 <body>
 
   <h2>🚀 AlphaScope</h2>
 
-  <button id="earlyBtn">Early Buy</button>
+  <button id="earlyBtn">Early Signals</button>
   <button id="walletBtn">Wallet Tracker</button>
   <button id="trendBtn">Trending</button>
-
-  <!-- 🔥 NEW BUTTON -->
   <button id="upgradeBtn">Upgrade 🚀</button>
 
   <div id="output">Ready...</div>

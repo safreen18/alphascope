@@ -1,4 +1,4 @@
-console.log("🔥 AlphaScope Alpha Engine Loaded");
+console.log("🔥 AlphaScope Alpha Engine + Whale Tracking Loaded");
 
 const express = require('express');
 const axios = require('axios');
@@ -25,9 +25,19 @@ const payments = {};
 const sentSignals = new Set();
 
 // =========================
-// MEMORY STORE (for spikes)
+// MEMORY STORE (for spikes & whales)
 // =========================
 const volumeMemory = {};
+const whaleMemory = {};
+
+// =========================
+// TOP WALLETS (example, replace with real list)
+// =========================
+const topWallets = [
+  "0xWalletAddress1",
+  "0xWalletAddress2",
+  "0xWalletAddress3"
+];
 
 // =========================
 // FETCH TOKENS
@@ -45,16 +55,45 @@ async function fetchPairs() {
 }
 
 // =========================
+// FETCH WALLET ACTIVITY
+// =========================
+async function checkWhaleActivity(pairAddress) {
+  try {
+    // Example: Replace with a real blockchain API if needed
+    const res = await axios.get(
+      `https://api.blockchain.com/v1/address/${pairAddress}/transactions`
+    );
+    const txs = res.data || [];
+
+    // Count whales buying in last 15 min
+    let whalesBuying = 0;
+    const now = Date.now();
+
+    for (const tx of txs) {
+      if (topWallets.includes(tx.from) && tx.timestamp * 1000 > now - 15 * 60 * 1000) {
+        whalesBuying++;
+      }
+    }
+
+    return whalesBuying;
+
+  } catch (err) {
+    return 0;
+  }
+}
+
+// =========================
 // CALCULATE ALPHA SCORE
 // =========================
-function calculateScore(pair, spike, ageMinutes) {
+function calculateScore(pair, spike, ageMinutes, whales) {
   let score = 0;
 
   if (pair.liquidity?.usd > 20000) score += 20;
   if (pair.volume?.h24 > 50000) score += 20;
-  if (spike > 2) score += 25;
-  if (pair.priceChange?.h1 > 5) score += 15;
-  if (ageMinutes < 60) score += 20;
+  if (spike > 2) score += 20;
+  if (pair.priceChange?.h1 > 5) score += 10;
+  if (ageMinutes < 60) score += 10;
+  if (whales > 0) score += 20;
 
   return Math.min(score, 100);
 }
@@ -64,7 +103,6 @@ function calculateScore(pair, spike, ageMinutes) {
 // =========================
 async function getAlphaSignals() {
   const pairs = await fetchPairs();
-
   const signals = [];
 
   for (const pair of pairs) {
@@ -76,25 +114,24 @@ async function getAlphaSignals() {
     const oldVolume = volumeMemory[id] || currentVolume;
 
     const spike = currentVolume / (oldVolume || 1);
-
-    // Save current for next comparison
     volumeMemory[id] = currentVolume;
 
-    // Token age
     const createdAt = pair.pairCreatedAt || Date.now();
     const ageMinutes = (Date.now() - createdAt) / 60000;
 
-    // FILTER (STRONG)
+    // Strong filter
     if (
       pair.liquidity.usd < 10000 ||
       currentVolume < 20000 ||
       spike < 1.5
-    ) {
-      continue;
-    }
+    ) continue;
 
-    const score = calculateScore(pair, spike, ageMinutes);
+    // Whale activity
+    let whales = whaleMemory[id] || 0;
+    whales = await checkWhaleActivity(pair.pairAddress);
+    whaleMemory[id] = whales;
 
+    const score = calculateScore(pair, spike, ageMinutes, whales);
     if (score < 60) continue;
 
     signals.push({
@@ -106,6 +143,7 @@ async function getAlphaSignals() {
       volume: currentVolume,
       spike: spike.toFixed(2),
       age: ageMinutes.toFixed(0),
+      whales,
       score,
       url: pair.url
     });
@@ -118,6 +156,8 @@ async function getAlphaSignals() {
 // TELEGRAM ALERT
 // =========================
 async function sendTelegram(chatId, token) {
+  const whaleText = token.whales > 0 ? `🐋 Whale Activity: ${token.whales}` : "";
+
   const msg = `
 🚀 AlphaScope Signal
 
@@ -126,6 +166,7 @@ ${token.name} (${token.symbol})
 ⚡ Spike: ${token.spike}x
 🧠 Score: ${token.score}/100
 ⏱ Age: ${token.age} min
+${whaleText}
 
 ${token.url}
 `;
@@ -144,7 +185,7 @@ ${token.url}
 // AUTO SCAN LOOP
 // =========================
 setInterval(async () => {
-  console.log("🔍 Alpha Scanning...");
+  console.log("🔍 Alpha + Whale Scanning...");
 
   const signals = await getAlphaSignals();
 
@@ -166,23 +207,18 @@ setInterval(async () => {
 // =========================
 // API ROUTES
 // =========================
-
-// USER
 app.get('/user', (req, res) => {
   const userId = req.query.userId;
   res.json(users[userId] || { tier: "free" });
 });
 
-// SIGNALS
 app.get('/early', async (req, res) => {
   const signals = await getAlphaSignals();
   res.json({ signals });
 });
 
-// PAYMENT
 app.get('/create-payment', async (req, res) => {
   const userId = req.query.userId || "1710140755";
-
   try {
     const response = await axios.post(
       "https://api.nowpayments.io/v1/invoice",
@@ -202,7 +238,6 @@ app.get('/create-payment', async (req, res) => {
 
     const invoice = response.data;
     payments[invoice.id] = userId;
-
     res.json({ payment_url: invoice.invoice_url });
 
   } catch (err) {
@@ -210,7 +245,6 @@ app.get('/create-payment', async (req, res) => {
   }
 });
 
-// WEBHOOK
 app.post('/webhook', (req, res) => {
   const payment = req.body;
 
@@ -226,14 +260,14 @@ app.post('/webhook', (req, res) => {
   res.sendStatus(200);
 });
 
-// ROOT
 app.get('/', (req, res) => {
-  res.send("AlphaScope Alpha Engine LIVE 🚀");
+  res.send("AlphaScope Alpha Engine + Whale Tracking LIVE 🚀");
 });
 
+// =========================
 // START SERVER
+// =========================
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log(`🚀 Running on port ${PORT}`);
 });

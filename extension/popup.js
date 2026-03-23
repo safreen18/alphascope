@@ -1,84 +1,67 @@
 const API = "https://alphascope-z4rz.onrender.com";
-const userId = "1710140755";
+const userId = Date.now().toString();
 
-// BUTTONS
-document.getElementById("earlyBtn").onclick = loadEarly;
-document.getElementById("walletBtn").onclick = loadWallet;
-document.getElementById("trendBtn").onclick = loadTrend;
+document.getElementById("earlyBtn").onclick = loadSignals;
 document.getElementById("upgradeBtn").onclick = upgradeUser;
 
 // =========================
-// EARLY SIGNALS
+// LOAD SIGNALS (PREMIUM UI)
 // =========================
-async function loadEarly() {
-  document.getElementById("output").innerText = "Loading signals...";
+async function loadSignals() {
+  const output = document.getElementById("output");
+  output.innerHTML = "Loading...";
 
   try {
     const userRes = await fetch(`${API}/user?userId=${userId}`);
     const user = await userRes.json();
 
     if (user.tier !== "premium") {
-      document.getElementById("output").innerText =
-        "🚫 Upgrade to Premium to access signals";
+      output.innerHTML = "🚫 Upgrade to Premium to unlock signals";
       return;
     }
 
     const res = await fetch(`${API}/early`);
     const data = await res.json();
 
-    if (!data.signals || data.signals.length === 0) {
-      document.getElementById("output").innerText = "No signals found";
+    if (!data.signals.length) {
+      output.innerHTML = "No signals right now...";
       return;
     }
 
-    let text = "🚀 EARLY SIGNALS\n\n";
+    output.innerHTML = "";
 
     data.signals.forEach(token => {
-      text += `${token.name} (${token.symbol})\n`;
-      text += `Price: $${token.price}\n`;
-      text += `1H: ${token.change_1h}%\n\n`;
+      const card = document.createElement("div");
+      card.className = "card";
+
+      card.innerHTML = `
+        <div class="token">${token.name} (${token.symbol})</div>
+        <div class="meta">💰 Price: $${token.price}</div>
+        <div class="meta">⚡ Spike: ${token.spike}x</div>
+        <div class="meta">⏱ Age: ${token.age} min</div>
+        <div class="score">🧠 Score: ${token.score}/100</div>
+      `;
+
+      output.appendChild(card);
     });
 
-    document.getElementById("output").innerText = text;
-
   } catch (err) {
-    document.getElementById("output").innerText = "Error loading signals";
+    output.innerHTML = "Error loading signals";
   }
-}
-
-// =========================
-// WALLET TRACKER (DUMMY)
-// =========================
-function loadWallet() {
-  document.getElementById("output").innerText =
-    "👛 Wallet tracking coming soon...";
-}
-
-// =========================
-// TRENDING (DUMMY)
-// =========================
-function loadTrend() {
-  document.getElementById("output").innerText =
-    "📈 Trending tokens coming soon...";
 }
 
 // =========================
 // UPGRADE FLOW
 // =========================
 async function upgradeUser() {
-  document.getElementById("output").innerText = "Creating payment...";
-
   try {
     const res = await fetch(`${API}/create-payment?userId=${userId}`);
     const data = await res.json();
 
     if (data.payment_url) {
       chrome.tabs.create({ url: data.payment_url });
-    } else {
-      document.getElementById("output").innerText = "Payment failed";
     }
-
   } catch (err) {
-    document.getElementById("output").innerText = "Error creating payment";
+    document.getElementById("output").innerHTML = "Payment error";
   }
 }
