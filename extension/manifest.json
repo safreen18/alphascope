@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "AlphaScope",
+  "version": "1.0",
+  "description": "Crypto Alpha Signals",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": ["tabs"]
+}
