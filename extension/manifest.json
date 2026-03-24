@@ -3,8 +3,14 @@
   "name": "AlphaScope",
   "version": "1.0",
   "description": "Crypto Alpha Signals",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://alphascope-z4rz.onrender.com/*"
+  ],
   "action": {
     "default_popup": "popup.html"
-  },
-  "permissions": ["tabs"]
+  }
 }

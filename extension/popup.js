@@ -1,67 +1,99 @@
 const API = "https://alphascope-z4rz.onrender.com";
-const userId = Date.now().toString();
 
-document.getElementById("earlyBtn").onclick = loadSignals;
-document.getElementById("upgradeBtn").onclick = upgradeUser;
+const signalsDiv = document.getElementById("signals");
+const loadBtn = document.getElementById("loadSignals");
+const upgradeBtn = document.getElementById("upgradeBtn");
 
-// =========================
-// LOAD SIGNALS (PREMIUM UI)
-// =========================
-async function loadSignals() {
-  const output = document.getElementById("output");
-  output.innerHTML = "Loading...";
+console.log("AlphaScope popup loaded");
 
-  try {
-    const userRes = await fetch(`${API}/user?userId=${userId}`);
-    const user = await userRes.json();
-
-    if (user.tier !== "premium") {
-      output.innerHTML = "🚫 Upgrade to Premium to unlock signals";
-      return;
+// USER ID
+function getUserId(callback) {
+  chrome.storage.local.get(["userId"], (result) => {
+    if (result.userId) {
+      console.log("Existing user:", result.userId);
+      callback(result.userId);
+    } else {
+      const newId = Date.now().toString();
+      chrome.storage.local.set({ userId: newId });
+      console.log("New user created:", newId);
+      callback(newId);
     }
-
-    const res = await fetch(`${API}/early`);
-    const data = await res.json();
-
-    if (!data.signals.length) {
-      output.innerHTML = "No signals right now...";
-      return;
-    }
-
-    output.innerHTML = "";
-
-    data.signals.forEach(token => {
-      const card = document.createElement("div");
-      card.className = "card";
-
-      card.innerHTML = `
-        <div class="token">${token.name} (${token.symbol})</div>
-        <div class="meta">💰 Price: $${token.price}</div>
-        <div class="meta">⚡ Spike: ${token.spike}x</div>
-        <div class="meta">⏱ Age: ${token.age} min</div>
-        <div class="score">🧠 Score: ${token.score}/100</div>
-      `;
-
-      output.appendChild(card);
-    });
-
-  } catch (err) {
-    output.innerHTML = "Error loading signals";
-  }
+  });
 }
 
-// =========================
-// UPGRADE FLOW
-// =========================
-async function upgradeUser() {
-  try {
-    const res = await fetch(`${API}/create-payment?userId=${userId}`);
-    const data = await res.json();
+// LOAD SIGNALS
+loadBtn.addEventListener("click", () => {
+  console.log("Load signals clicked");
 
-    if (data.payment_url) {
-      chrome.tabs.create({ url: data.payment_url });
+  getUserId(async (userId) => {
+    try {
+      signalsDiv.innerHTML = "Loading...";
+
+      const res = await fetch(`${API}/early?userId=${userId}`);
+      const data = await res.json();
+
+      console.log("API response:", data);
+
+      signalsDiv.innerHTML = "";
+
+      if (!data.signals) {
+        signalsDiv.innerHTML = "Invalid response";
+        return;
+      }
+
+      data.signals.forEach(t => {
+        const card = document.createElement("div");
+        card.className = "card";
+
+        card.innerHTML = `
+          <div>${t.token} (${t.symbol})</div>
+          <div>${t.chain}</div>
+          <div>Price: $${t.price}</div>
+          <div>Liquidity: ${t.liquidity}</div>
+          <div>Volume: ${t.volume24h}</div>
+          <div>Whales: ${t.whaleCount}</div>
+          <div>Score: ${t.score}</div>
+        `;
+
+        signalsDiv.appendChild(card);
+      });
+
+      if (data.locked) {
+        signalsDiv.innerHTML += `<div style="color:orange;text-align:center;">🔒 Upgrade for full access</div>`;
+      }
+
+    } catch (err) {
+      console.error("ERROR:", err);
+      signalsDiv.innerHTML = "Error loading signals";
     }
-  } catch (err) {
-    document.getElementById("output").innerHTML = "Payment error";
-  }
-}
+  });
+});
+
+// UPGRADE
+upgradeBtn.addEventListener("click", () => {
+  console.log("Upgrade clicked");
+
+  getUserId(async (userId) => {
+    try {
+      const res = await fetch(`${API}/create-payment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ userId })
+      });
+
+      const data = await res.json();
+      console.log("Payment response:", data);
+
+      if (data.invoice_url) {
+        chrome.tabs.create({ url: data.invoice_url });
+      } else {
+        alert("Payment failed");
+      }
+
+    } catch (err) {
+      console.error("Payment error:", err);
+    }
+  });
+});
