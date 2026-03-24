@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>AlphaScope Dashboard</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: Inter, sans-serif;
+  background: #020617;
+  color: #e2e8f0;
+}
+
+/* HEADER */
+.header {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.logo {
+  font-size: 20px;
+  font-weight: bold;
+  color: #38bdf8;
+}
+
+.status {
+  color: #22c55e;
+}
+
+/* GRID */
+.container {
+  padding: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+/* CARD */
+.card {
+  background: rgba(15,23,42,0.6);
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px solid rgba(148,163,184,0.1);
+  transition: 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0 20px rgba(56,189,248,0.2);
+}
+
+.token {
+  font-size: 16px;
+  font-weight: bold;
+  color: #38bdf8;
+}
+
+.sub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.metric {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+/* BADGE */
+.badge {
+  margin-top: 10px;
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.A { background: #16a34a; }
+.B { background: #f59e0b; }
+.C { background: #ef4444; }
+
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <div class="logo">AlphaScope</div>
+  <div class="status">LIVE SIGNALS</div>
+</div>
+
+<div class="container">
+  <div id="grid" class="grid"></div>
+</div>
+
+<script>
+const API = "/early?userId=dashboard";
+
+async function load() {
+  const res = await fetch(API);
+  const data = await res.json();
+
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+
+  data.signals.forEach(t => {
+    const div = document.createElement("div");
+    div.className = "card";
+
+    div.innerHTML = `
+      <div class="token">${t.token}</div>
+      <div class="sub">${t.symbol} • ${t.chain}</div>
+
+      <div class="metric">Price: $${t.price}</div>
+      <div class="metric">Liquidity: $${t.liquidity}</div>
+      <div class="metric">Volume: $${t.volume24h}</div>
+      <div class="metric">Whales: ${t.whaleCount}</div>
+
+      <div class="badge ${t.confidence}">
+        ${t.confidence}
+      </div>
+    `;
+
+    grid.appendChild(div);
+  });
+}
+
+load();
+</script>
+
+</body>
+</html>

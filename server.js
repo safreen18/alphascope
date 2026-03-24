@@ -2,18 +2,36 @@ import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Fix __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// -------------------------
+// MIDDLEWARE
+// -------------------------
 app.use(cors());
 app.use(express.json());
 
+// 🔥 SERVE DASHBOARD (IMPORTANT)
+app.use(express.static(path.join(__dirname, "public")));
+
+// -------------------------
+// TEMP STORAGE
+// -------------------------
 const users = {};
 const payments = {};
 
+// -------------------------
+// DATA SOURCE
+// -------------------------
 const DEX_API = "https://api.dexscreener.com/latest/dex/search?q=usdt";
 
 // -------------------------
@@ -33,27 +51,38 @@ async function fetchSignals() {
 
         if (liq < 1000 || vol < 500) return null;
 
+        const ratio = vol / (liq || 1);
+
+        let score = (ratio * 5) + (vol / 10000);
+
+        let confidence = "C";
+        if (score > 8) confidence = "A";
+        else if (score > 4) confidence = "B";
+
         return {
           token: p.baseToken.name,
           symbol: p.baseToken.symbol,
           price: parseFloat(p.priceUsd || 0),
-          chain: p.chainId?.toUpperCase() || "N/A",
+          chain: (p.chainId || "N/A").toUpperCase(),
           liquidity: Math.round(liq),
           volume24h: Math.round(vol),
-          whaleCount: Math.floor(vol / (liq || 1)),
-          score: Math.round((vol / (liq || 1)) * 10) / 10,
-          confidence: "B"
+          whaleCount: Math.floor(ratio),
+          score: score.toFixed(1),
+          confidence
         };
       })
       .filter(Boolean)
-      .slice(0, 7);
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
 
   } catch (err) {
-    console.error(err);
+    console.error("Signal fetch error:", err);
     return [];
   }
 }
 
+// -------------------------
+// EARLY SIGNALS
 // -------------------------
 app.get("/early", async (req, res) => {
   const userId = req.query.userId || "guest";
@@ -61,15 +90,23 @@ app.get("/early", async (req, res) => {
   const signals = await fetchSignals();
   const isPremium = users[userId]?.tier === "premium";
 
+  if (!signals.length) {
+    return res.json({
+      tier: "free",
+      locked: false,
+      signals: []
+    });
+  }
+
   if (!isPremium) {
     return res.json({
       tier: "free",
       locked: true,
       signals: signals.slice(0, 2).map(s => ({
         ...s,
-        whaleCount: "🔒",
-        score: "🔒",
-        confidence: "🔒"
+        whaleCount: "LOCKED",
+        score: "LOCKED",
+        confidence: "LOCKED"
       }))
     });
   }
@@ -82,14 +119,11 @@ app.get("/early", async (req, res) => {
 });
 
 // -------------------------
-// 🔥 FIXED PAYMENT ROUTE
+// CREATE PAYMENT
 // -------------------------
 app.post("/create-payment", async (req, res) => {
   try {
     const { userId } = req.body;
-
-    console.log("Creating payment for:", userId);
-    console.log("API KEY:", process.env.NOWPAYMENTS_API_KEY ? "Loaded" : "MISSING");
 
     const response = await fetch("https://api.nowpayments.io/v1/invoice", {
       method: "POST",
@@ -110,13 +144,9 @@ app.post("/create-payment", async (req, res) => {
 
     const data = await response.json();
 
-    console.log("NOWPayments FULL RESPONSE:", data);
-
     if (!data.invoice_url) {
-      return res.status(500).json({
-        error: "No invoice_url returned",
-        details: data
-      });
+      console.error("Payment error:", data);
+      return res.status(500).json({ error: "Payment failed" });
     }
 
     payments[data.id] = userId;
@@ -126,12 +156,27 @@ app.post("/create-payment", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("PAYMENT ERROR:", err);
+    console.error("Payment exception:", err);
     res.status(500).json({ error: "Payment failed" });
   }
 });
 
 // -------------------------
+// WEBHOOK
+// -------------------------
+app.post("/webhook", (req, res) => {
+  const { invoice_id, payment_status } = req.body;
+
+  if (payments[invoice_id] && payment_status === "finished") {
+    users[payments[invoice_id]] = { tier: "premium" };
+  }
+
+  res.sendStatus(200);
+});
+
+// -------------------------
+// START SERVER
+// -------------------------
 app.listen(PORT, () => {
-  console.log("🚀 AlphaScope PAYMENT FIXED");
+  console.log("🚀 AlphaScope FULL SYSTEM RUNNING");
 });
