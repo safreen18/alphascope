@@ -3,41 +3,39 @@ const API = "https://alphascope-z4rz.onrender.com";
 const signalsDiv = document.getElementById("signals");
 const loadBtn = document.getElementById("loadSignals");
 const upgradeBtn = document.getElementById("upgradeBtn");
+const walletBtn = document.getElementById("wallet");
+const trendBtn = document.getElementById("trend");
 
-console.log("AlphaScope popup loaded");
-
-// USER ID
+// -------------------------
+// USER ID (PERSISTENT)
+// -------------------------
 function getUserId(callback) {
   chrome.storage.local.get(["userId"], (result) => {
     if (result.userId) {
-      console.log("Existing user:", result.userId);
       callback(result.userId);
     } else {
       const newId = Date.now().toString();
       chrome.storage.local.set({ userId: newId });
-      console.log("New user created:", newId);
       callback(newId);
     }
   });
 }
 
+// -------------------------
 // LOAD SIGNALS
+// -------------------------
 loadBtn.addEventListener("click", () => {
-  console.log("Load signals clicked");
-
   getUserId(async (userId) => {
-    try {
-      signalsDiv.innerHTML = "Loading...";
+    signalsDiv.innerHTML = "Loading signals...";
 
+    try {
       const res = await fetch(`${API}/early?userId=${userId}`);
       const data = await res.json();
 
-      console.log("API response:", data);
-
       signalsDiv.innerHTML = "";
 
-      if (!data.signals) {
-        signalsDiv.innerHTML = "Invalid response";
+      if (!data.signals || data.signals.length === 0) {
+        signalsDiv.innerHTML = "No signals found.";
         return;
       }
 
@@ -46,33 +44,43 @@ loadBtn.addEventListener("click", () => {
         card.className = "card";
 
         card.innerHTML = `
-          <div>${t.token} (${t.symbol})</div>
-          <div>${t.chain}</div>
-          <div>Price: $${t.price}</div>
-          <div>Liquidity: ${t.liquidity}</div>
-          <div>Volume: ${t.volume24h}</div>
-          <div>Whales: ${t.whaleCount}</div>
-          <div>Score: ${t.score}</div>
+          <div class="token">${t.token} (${t.symbol})</div>
+          <div class="chain">${t.chain}</div>
+
+          <div>💰 Price: $${t.price}</div>
+          <div>💧 Liquidity: ${t.liquidity}</div>
+          <div>📊 Volume: ${t.volume24h}</div>
+
+          <div>🐋 Whales: ${t.whaleCount}</div>
+          <div>⭐ Score: ${t.score}</div>
+          <div>🎯 Confidence: ${t.confidence}</div>
         `;
 
         signalsDiv.appendChild(card);
       });
 
+      // 🔒 LOCK MESSAGE
       if (data.locked) {
-        signalsDiv.innerHTML += `<div style="color:orange;text-align:center;">🔒 Upgrade for full access</div>`;
+        const lock = document.createElement("div");
+        lock.innerHTML = `
+          <div style="text-align:center;margin-top:10px;color:#f59e0b;">
+            🔒 Unlock Premium for full signals
+          </div>
+        `;
+        signalsDiv.appendChild(lock);
       }
 
     } catch (err) {
-      console.error("ERROR:", err);
-      signalsDiv.innerHTML = "Error loading signals";
+      console.error(err);
+      signalsDiv.innerHTML = "Error loading signals.";
     }
   });
 });
 
-// UPGRADE
+// -------------------------
+// UPGRADE BUTTON (FIXED)
+// -------------------------
 upgradeBtn.addEventListener("click", () => {
-  console.log("Upgrade clicked");
-
   getUserId(async (userId) => {
     try {
       const res = await fetch(`${API}/create-payment`, {
@@ -84,16 +92,40 @@ upgradeBtn.addEventListener("click", () => {
       });
 
       const data = await res.json();
+
       console.log("Payment response:", data);
 
       if (data.invoice_url) {
         chrome.tabs.create({ url: data.invoice_url });
       } else {
-        alert("Payment failed");
+        alert("Payment failed. Try again.");
       }
 
     } catch (err) {
       console.error("Payment error:", err);
+      alert("Error initiating payment.");
     }
   });
+});
+
+// -------------------------
+// WALLET BUTTON (TEMP UI)
+// -------------------------
+walletBtn.addEventListener("click", () => {
+  signalsDiv.innerHTML = `
+    <div style="text-align:center;margin-top:20px;">
+      🐋 Wallet Tracking Coming Soon
+    </div>
+  `;
+});
+
+// -------------------------
+// TREND BUTTON (TEMP UI)
+// -------------------------
+trendBtn.addEventListener("click", () => {
+  signalsDiv.innerHTML = `
+    <div style="text-align:center;margin-top:20px;">
+      📈 Trending Tokens Coming Soon
+    </div>
+  `;
 });

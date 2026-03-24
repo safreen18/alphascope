@@ -17,7 +17,7 @@ const payments = {};
 const DEX_API = "https://api.dexscreener.com/latest/dex/search?q=usdt";
 
 // -------------------------
-// FETCH REAL DATA (WORKING)
+// FETCH SIGNALS
 // -------------------------
 async function fetchSignals() {
   try {
@@ -26,52 +26,30 @@ async function fetchSignals() {
 
     if (!data.pairs) return [];
 
-    const now = Date.now();
-
     return data.pairs
       .map(p => {
         const liq = p.liquidity?.usd || 0;
         const vol = p.volume?.h24 || 0;
-        const price = parseFloat(p.priceUsd || 0);
 
-        const ageHours = p.pairCreatedAt
-          ? (now - p.pairCreatedAt) / 3600000
-          : 24;
-
-        const ratio = vol / (liq || 1);
-
-        // FILTERS (RELAXED BUT REAL)
-        if (liq < 1000) return null;
-        if (vol < 500) return null;
-
-        let score = 0;
-        score += liq / 20000;
-        score += vol / 8000;
-        score += ratio * 4;
-        score += Math.max(0, 6 - ageHours);
-
-        let confidence = "C";
-        if (score > 8) confidence = "A";
-        else if (score > 5) confidence = "B";
+        if (liq < 1000 || vol < 500) return null;
 
         return {
           token: p.baseToken.name,
           symbol: p.baseToken.symbol,
-          price,
+          price: parseFloat(p.priceUsd || 0),
           chain: p.chainId?.toUpperCase() || "N/A",
           liquidity: Math.round(liq),
           volume24h: Math.round(vol),
-          whaleCount: Math.floor(ratio),
-          score: Math.round(score * 10) / 10,
-          confidence
+          whaleCount: Math.floor(vol / (liq || 1)),
+          score: Math.round((vol / (liq || 1)) * 10) / 10,
+          confidence: "B"
         };
       })
       .filter(Boolean)
-      .sort((a, b) => b.score - a.score)
       .slice(0, 7);
 
   } catch (err) {
-    console.error("Fetch error:", err);
+    console.error(err);
     return [];
   }
 }
@@ -82,14 +60,6 @@ app.get("/early", async (req, res) => {
 
   const signals = await fetchSignals();
   const isPremium = users[userId]?.tier === "premium";
-
-  if (!signals.length) {
-    return res.json({
-      tier: "free",
-      locked: false,
-      signals: []
-    });
-  }
 
   if (!isPremium) {
     return res.json({
@@ -112,42 +82,56 @@ app.get("/early", async (req, res) => {
 });
 
 // -------------------------
-app.post("/create-payment", async (req, res) => {
-  const { userId } = req.body;
-
-  const response = await fetch("https://api.nowpayments.io/v1/invoice", {
-    method: "POST",
-    headers: {
-      "x-api-key": process.env.NOWPAYMENTS_API_KEY,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      price_amount: 10,
-      price_currency: "USD",
-      pay_currency: "USDT",
-      order_id: userId + "_" + Date.now(),
-      ipn_callback_url: `${req.protocol}://${req.get("host")}/webhook`
-    })
-  });
-
-  const data = await response.json();
-  payments[data.id] = userId;
-
-  res.json({ invoice_url: data.invoice_url });
-});
-
+// 🔥 FIXED PAYMENT ROUTE
 // -------------------------
-app.post("/webhook", (req, res) => {
-  const { invoice_id, payment_status } = req.body;
+app.post("/create-payment", async (req, res) => {
+  try {
+    const { userId } = req.body;
 
-  if (payments[invoice_id] && payment_status === "finished") {
-    users[payments[invoice_id]] = { tier: "premium" };
+    console.log("Creating payment for:", userId);
+    console.log("API KEY:", process.env.NOWPAYMENTS_API_KEY ? "Loaded" : "MISSING");
+
+    const response = await fetch("https://api.nowpayments.io/v1/invoice", {
+      method: "POST",
+      headers: {
+        "x-api-key": process.env.NOWPAYMENTS_API_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        price_amount: 10,
+        price_currency: "usd",
+        pay_currency: "usdttrc20",
+        order_id: userId + "_" + Date.now(),
+        order_description: "AlphaScope Premium",
+        success_url: "https://google.com",
+        cancel_url: "https://google.com"
+      })
+    });
+
+    const data = await response.json();
+
+    console.log("NOWPayments FULL RESPONSE:", data);
+
+    if (!data.invoice_url) {
+      return res.status(500).json({
+        error: "No invoice_url returned",
+        details: data
+      });
+    }
+
+    payments[data.id] = userId;
+
+    res.json({
+      invoice_url: data.invoice_url
+    });
+
+  } catch (err) {
+    console.error("PAYMENT ERROR:", err);
+    res.status(500).json({ error: "Payment failed" });
   }
-
-  res.sendStatus(200);
 });
 
 // -------------------------
 app.listen(PORT, () => {
-  console.log("🚀 Alpha Engine LIVE (Fixed Data Source)");
+  console.log("🚀 AlphaScope PAYMENT FIXED");
 });
