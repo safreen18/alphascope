@@ -1,121 +1,95 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>AlphaScope</title>
+  <meta charset="UTF-8">
+  <title>AlphaScope</title>
+  <style>
+    body {
+      margin: 0;
+      background: #0b0f1a;
+      color: white;
+      font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", Arial, sans-serif;
+      width: 350px;
+    }
 
-<style>
-body {
-  margin: 0;
-  font-family: monospace;
-  background: #020617;
-  color: #e2e8f0;
-  width: 420px;
-}
+    .header {
+      padding: 15px;
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      background: linear-gradient(90deg,#0f172a,#1e293b);
+      border-bottom: 1px solid #1f2a44;
+    }
 
-/* TOP BAR */
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  padding: 10px;
-  font-size: 12px;
-  border-bottom: 1px solid #1e293b;
-}
+    .section-title {
+      padding: 8px 12px;
+      font-size: 12px;
+      opacity: 0.7;
+      text-transform: uppercase;
+    }
 
-.brand {
-  color: #38bdf8;
-  font-weight: bold;
-}
+    .controls { padding: 10px; text-align: center; }
+    button {
+      background: #2563eb;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+    }
 
-.status {
-  color: #22c55e;
-}
+    .loader { text-align:center; padding:10px; opacity:0.7; font-size:13px; }
 
-/* CONTROLS */
-.controls {
-  padding: 8px;
-}
+    .signals { padding: 10px; }
 
-button {
-  width: 100%;
-  padding: 10px;
-  margin-top: 6px;
-  border: none;
-  border-radius: 6px;
-  background: #0f172a;
-  color: #94a3b8;
-  cursor: pointer;
-}
+    .card {
+      background: #111827;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      border: 1px solid #1f2937;
+      transition: all 0.3s ease;
+      position: relative;
+      font-family: inherit;
+    }
 
-button:hover {
-  background: #1e293b;
-}
+    .card.new { border: 1px solid #22c55e; box-shadow:0 0 12px rgba(34,197,94,0.6); animation: pulse 0.6s ease; }
+    .card.high { border-left: 4px solid #ef4444; box-shadow:0 0 10px rgba(239,68,68,0.5); }
+    .card.medium { border-left: 4px solid #f59e0b; }
+    .card.low { border-left: 4px solid #6b7280; opacity:0.85; }
+    .card.recent { opacity:0.6; transform:scale(0.98); }
 
-/* TABLE */
-.table {
-  width: 100%;
-  font-size: 12px;
-  border-collapse: collapse;
-}
+    .token { font-weight:bold; font-size:16px; font-family: inherit; }
+    .meta { font-size:12px; opacity:0.75; font-family: inherit; }
+    .badge { display:inline-block; padding:2px 6px; border-radius:6px; font-size:10px; margin-left:5px; font-family: inherit; }
+    .whale { background:#1d4ed8; } 
+    .early { background:#059669; } 
+    .spike { background:#facc15; }
+    .strength.high { color:#ef4444; } 
+    .strength.medium { color:#f59e0b; } 
+    .strength.low { color:#9ca3af; }
 
-.row {
-  display: grid;
-  grid-template-columns: 1.2fr 0.8fr 1fr 1fr 0.8fr;
-  padding: 8px;
-  border-bottom: 1px solid #0f172a;
-}
+    .new-badge { position:absolute; top:8px; right:8px; background:#22c55e; font-size:10px; padding:3px 6px; border-radius:6px; animation: fadeOut 4s forwards; }
 
-.row.header {
-  color: #64748b;
-  font-size: 11px;
-}
+    @keyframes fadeOut { 0% {opacity:1;} 80% {opacity:1;} 100% {opacity:0;} }
+    @keyframes pulse { 0% {transform:scale(0.98);} 50% {transform:scale(1.02);} 100% {transform:scale(1);} }
 
-.row.data:hover {
-  background: rgba(56,189,248,0.05);
-}
-
-.token {
-  color: #38bdf8;
-  font-weight: bold;
-}
-
-.hot {
-  color: #22c55e;
-}
-
-.badge {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.A { color: #22c55e; }
-.B { color: #f59e0b; }
-.C { color: #ef4444; }
-
-.lock {
-  text-align: center;
-  padding: 10px;
-  color: #f59e0b;
-}
-</style>
+  </style>
 </head>
-
 <body>
+  <div class="header">🚀 AlphaScope</div>
+  <div class="controls"><button id="scanBtn">Scan Market</button></div>
+  <div class="loader" id="loader">⏳ Loading signals...</div>
 
-<div class="topbar">
-  <div class="brand">AlphaScope</div>
-  <div class="status">LIVE</div>
-</div>
+  <div class="section-title">🏆 Top 3 Hot Tokens</div>
+  <div class="signals" id="hotLeaderboard"></div>
 
-<div class="controls">
-  <button id="loadSignals">Scan Market</button>
-  <button id="upgradeBtn">Upgrade</button>
-</div>
+  <div class="section-title">🔥 Live Signals</div>
+  <div class="signals" id="liveSignals"></div>
 
-<div id="signals"></div>
+  <div class="section-title">🕒 Recently Fired</div>
+  <div class="signals" id="recentSignals"></div>
 
-<script src="popup.js"></script>
-
+  <script src="popup.js"></script>
 </body>
 </html>

@@ -2,181 +2,198 @@ import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
 import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
-// Fix __dirname for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// -------------------------
-// MIDDLEWARE
-// -------------------------
 app.use(cors());
 app.use(express.json());
 
-// 🔥 SERVE DASHBOARD (IMPORTANT)
-app.use(express.static(path.join(__dirname, "public")));
+// =========================
+// 🔥 CONFIG
+// =========================
+const CHAT_ID = "1710140755";
+const TELEGRAM_TOKEN = "8760490176:AAGNBjqvDiDa5nSId2nOC-bsuTBKIrq952c";
 
-// -------------------------
-// TEMP STORAGE
-// -------------------------
-const users = {};
-const payments = {};
+// =========================
+// 📤 TELEGRAM
+// =========================
+async function sendTelegram(text) {
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        text
+      })
+    });
+  } catch (err) {
+    console.error("Telegram error:", err);
+  }
+}
 
-// -------------------------
-// DATA SOURCE
-// -------------------------
-const DEX_API = "https://api.dexscreener.com/latest/dex/search?q=usdt";
-
-// -------------------------
-// FETCH SIGNALS
-// -------------------------
+// =========================
+// 🔍 SIGNAL ENGINE + WHALES
+// =========================
 async function fetchSignals() {
   try {
-    const res = await fetch(DEX_API);
-    const data = await res.json();
+    const res = await fetch("https://api.dexscreener.com/latest/dex/search?q=eth");
+    const text = await res.text();
 
-    if (!data.pairs) return [];
+    if (!text.startsWith("{")) return fallbackSignals();
 
-    return data.pairs
+    const data = JSON.parse(text);
+
+    if (!data.pairs) return fallbackSignals();
+
+    const signals = data.pairs
       .map(p => {
+        const symbol = p.baseToken?.symbol || "";
+        const tokenName = p.baseToken?.name || "";
+
+        // ❌ remove stablecoins
+        const blacklist = ["USDT", "USDC", "DAI", "BUSD"];
+        if (blacklist.includes(symbol.toUpperCase())) return null;
+
         const liq = p.liquidity?.usd || 0;
         const vol = p.volume?.h24 || 0;
 
-        if (liq < 1000 || vol < 500) return null;
+        if (liq < 500 || vol < 1000) return null;
 
         const ratio = vol / (liq || 1);
 
-        let score = (ratio * 5) + (vol / 10000);
+        // 🐋 WHALE DETECTION
+        let whaleDetected = false;
+        let whaleStrength = "LOW";
 
-        let confidence = "C";
-        if (score > 8) confidence = "A";
-        else if (score > 4) confidence = "B";
+        if (ratio > 1.5) {
+          whaleDetected = true;
+          whaleStrength = "MEDIUM";
+        }
+
+        if (ratio > 3) {
+          whaleStrength = "HIGH";
+        }
+
+        // 🔥 SIGNAL STRENGTH
+        let strength = "LOW";
+        if (ratio > 1.2) strength = "MEDIUM";
+        if (ratio > 2) strength = "HIGH";
+
+        // 🧠 SCORE BOOST FROM WHALES
+        let score = ratio * 5;
+        if (whaleDetected) score += 5;
+        if (whaleStrength === "HIGH") score += 5;
 
         return {
-          token: p.baseToken.name,
-          symbol: p.baseToken.symbol,
-          price: parseFloat(p.priceUsd || 0),
+          id: `${p.chainId}_${symbol}_${p.pairAddress}`,
+          token: tokenName,
+          symbol,
           chain: (p.chainId || "N/A").toUpperCase(),
           liquidity: Math.round(liq),
           volume24h: Math.round(vol),
-          whaleCount: Math.floor(ratio),
           score: score.toFixed(1),
-          confidence
+          entrySignal: ratio > 1.2,
+          strength,
+          whaleDetected,
+          whaleStrength
         };
       })
       .filter(Boolean)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 8);
+      .slice(0, 6);
+
+    if (signals.length === 0) return fallbackSignals();
+
+    return signals;
 
   } catch (err) {
-    console.error("Signal fetch error:", err);
-    return [];
+    console.error("Fetch error:", err);
+    return fallbackSignals();
   }
 }
 
-// -------------------------
-// EARLY SIGNALS
-// -------------------------
-app.get("/early", async (req, res) => {
-  const userId = req.query.userId || "guest";
+// =========================
+// 🛟 FALLBACK
+// =========================
+function fallbackSignals() {
+  return [
+    {
+      id: "1",
+      token: "Alpha Whale",
+      symbol: "WHALE",
+      chain: "ETH",
+      liquidity: 5000,
+      volume24h: 25000,
+      score: "12.5",
+      entrySignal: true,
+      strength: "HIGH",
+      whaleDetected: true,
+      whaleStrength: "HIGH"
+    }
+  ];
+}
+
+// =========================
+// 🚨 ALERT ENGINE
+// =========================
+const sentSignals = {};
+
+async function runAlerts() {
+  console.log("🔄 Scanning market...");
 
   const signals = await fetchSignals();
-  const isPremium = users[userId]?.tier === "premium";
 
-  if (!signals.length) {
-    return res.json({
-      tier: "free",
-      locked: false,
-      signals: []
-    });
-  }
+  for (const s of signals) {
 
-  if (!isPremium) {
-    return res.json({
-      tier: "free",
-      locked: true,
-      signals: signals.slice(0, 2).map(s => ({
-        ...s,
-        whaleCount: "LOCKED",
-        score: "LOCKED",
-        confidence: "LOCKED"
-      }))
-    });
+    if (!s.entrySignal) continue;
+
+    if (sentSignals[s.id]) continue;
+
+    sentSignals[s.id] = true;
+
+    const msg = `
+🚨 AlphaScope Whale Signal
+
+${s.token} (${s.symbol})
+Chain: ${s.chain}
+
+Liquidity: $${s.liquidity}
+Volume: $${s.volume24h}
+
+🐋 Whale: ${s.whaleDetected ? "YES" : "NO"}
+🐋 Strength: ${s.whaleStrength}
+
+Strength: ${s.strength}
+Score: ${s.score}
+
+⚡ Smart Money Entry
+`;
+
+    await sendTelegram(msg);
   }
+}
+
+// =========================
+// 🔁 AUTO RUN
+// =========================
+setInterval(runAlerts, 15000);
+
+// =========================
+// 🌐 API
+// =========================
+app.get("/early", async (req, res) => {
+  const signals = await fetchSignals();
 
   res.json({
-    tier: "premium",
-    locked: false,
     signals
   });
 });
 
-// -------------------------
-// CREATE PAYMENT
-// -------------------------
-app.post("/create-payment", async (req, res) => {
-  try {
-    const { userId } = req.body;
-
-    const response = await fetch("https://api.nowpayments.io/v1/invoice", {
-      method: "POST",
-      headers: {
-        "x-api-key": process.env.NOWPAYMENTS_API_KEY,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        price_amount: 10,
-        price_currency: "usd",
-        pay_currency: "usdttrc20",
-        order_id: userId + "_" + Date.now(),
-        order_description: "AlphaScope Premium",
-        success_url: "https://google.com",
-        cancel_url: "https://google.com"
-      })
-    });
-
-    const data = await response.json();
-
-    if (!data.invoice_url) {
-      console.error("Payment error:", data);
-      return res.status(500).json({ error: "Payment failed" });
-    }
-
-    payments[data.id] = userId;
-
-    res.json({
-      invoice_url: data.invoice_url
-    });
-
-  } catch (err) {
-    console.error("Payment exception:", err);
-    res.status(500).json({ error: "Payment failed" });
-  }
-});
-
-// -------------------------
-// WEBHOOK
-// -------------------------
-app.post("/webhook", (req, res) => {
-  const { invoice_id, payment_status } = req.body;
-
-  if (payments[invoice_id] && payment_status === "finished") {
-    users[payments[invoice_id]] = { tier: "premium" };
-  }
-
-  res.sendStatus(200);
-});
-
-// -------------------------
-// START SERVER
-// -------------------------
+// =========================
 app.listen(PORT, () => {
-  console.log("🚀 AlphaScope FULL SYSTEM RUNNING");
+  console.log("🚀 AlphaScope WHALE ENGINE LIVE");
 });
