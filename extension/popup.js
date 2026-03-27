@@ -3,7 +3,13 @@ const API_URL = "https://alphascope-z4rz.onrender.com";
 let selectedChain = "all";
 let userTier = "free";
 
-// ✅ SAFE FORMATTERS
+// 🧠 TRACK PREVIOUS SIGNALS
+let previousSignals = new Set();
+
+// 🔊 SOUND ALERT
+const audio = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
+
+// 🔥 FORMATTERS
 function formatPrice(p){
   if(!p || isNaN(p)) return "--";
   return "$" + Number(p).toFixed(6);
@@ -16,7 +22,19 @@ function formatNum(n){
   return n;
 }
 
-// ✅ USER
+// 🧠 NORMALIZE CHAIN (CRITICAL FIX)
+function normalizeChain(c){
+  if(!c) return "ethereum";
+  c = c.toLowerCase();
+
+  if(c.includes("eth")) return "ethereum";
+  if(c.includes("bsc") || c.includes("bnb")) return "bsc";
+  if(c.includes("sol")) return "solana";
+
+  return "ethereum";
+}
+
+// 🧠 USER
 async function fetchUser(){
   try{
     const r = await fetch(`${API_URL}/user`);
@@ -27,7 +45,7 @@ async function fetchUser(){
   }
 }
 
-// ✅ CHAIN CLICK
+// 🔥 CHAIN SWITCH
 document.addEventListener("click",(e)=>{
   if(e.target.classList.contains("chain-btn")){
     document.querySelectorAll(".chain-btn").forEach(b=>b.classList.remove("active"));
@@ -37,36 +55,22 @@ document.addEventListener("click",(e)=>{
   }
 });
 
-// 🧠 INSIGHT ENGINE
+// 🧠 INSIGHT
 function generateInsight(s){
-  let insight = "Weak activity";
-  let action = "Avoid entry";
-  let confidence = "LOW";
-
   if(s.score > 60){
-    insight = "Strong early momentum + liquidity gap";
-    action = "Early entry opportunity";
-    confidence = "HIGH";
+    return "Explosive early momentum + whale accumulation";
   }
-  else if(s.score > 30){
-    insight = "Building volume with moderate interest";
-    action = "Watch closely";
-    confidence = "MEDIUM";
+  if(s.score > 30){
+    return "Accumulation phase detected";
   }
-
-  if(s.whaleDetected){
-    insight += " • Whale accumulation detected";
-    action = "Follow smart money";
-    confidence = "VERY HIGH";
-  }
-
-  return { insight, action, confidence };
+  return "Low conviction setup";
 }
 
 // 🚀 FETCH SIGNALS
 async function fetchSignals(){
   const el = document.getElementById("signals");
-  el.innerHTML = `<div class="loader">Scanning markets...</div>`;
+
+  el.innerHTML = `<div class="loader">⚡ Scanning live smart money...</div>`;
 
   try{
     const r = await fetch(`${API_URL}/early`);
@@ -74,44 +78,46 @@ async function fetchSignals(){
 
     let signals = d.signals || [];
 
-    // ✅ FILTER CHAIN
+    // 🔥 NORMALIZE ALL CHAINS
+    signals = signals.map(s => ({
+      ...s,
+      chain: normalizeChain(s.chain)
+    }));
+
+    // 🔥 DEBUG (you can remove later)
+    console.log("ALL SIGNALS:", signals);
+
+    // 🔥 FILTER CORRECTLY
     if(selectedChain !== "all"){
-      signals = signals.filter(s=>s.chain === selectedChain);
+      signals = signals.filter(s => s.chain === selectedChain);
     }
 
-    // ✅ SORT BEST FIRST
+    console.log("FILTERED:", selectedChain, signals);
+
     signals.sort((a,b)=>Number(b.score)-Number(a.score));
 
-    // ✅ FREE VS PREMIUM LOGIC
-    let visible;
-
-    if(userTier === "premium"){
-      visible = signals;
-    }else{
-      visible = signals.slice(0,6); // show more signals
-    }
-
-    if(visible.length === 0){
-      el.innerHTML = `<div class="empty">No signals found</div>`;
+    if(signals.length === 0){
+      el.innerHTML = `<div class="empty">No ${selectedChain.toUpperCase()} signals</div>`;
       return;
     }
 
-    // 🔥 ONE FREE FULL INSIGHT (VERY IMPORTANT)
-    const unlockedIndex = 0;
+    let newDetected = false;
 
-    const html = visible.map((s,i)=>{
+    const html = signals.map((s,i)=>{
 
-      const insightData = generateInsight(s);
+      const id = s.token + s.symbol + s.chain;
+      const isNew = !previousSignals.has(id);
 
-      const isUnlocked = userTier==="premium" || i===unlockedIndex;
+      if(isNew) newDetected = true;
 
       return `
-      <div class="card ${Number(s.score)>60?"strong":""}">
-        
-        ${i===0?`<div class="top">TOP SIGNAL</div>`:""}
+      <div class="card ${s.score>60?"strong":""} ${isNew?"pulse":""}">
 
-        <div class="token">${s.token || "Unknown"}</div>
-        <div class="symbol">${s.symbol || "--"} • ${(s.chain || "").toUpperCase()}</div>
+        ${isNew?`<div class="top">⚡ NEW</div>`:""}
+        ${i===0?`<div class="top">🔥 HOT</div>`:""}
+
+        <div class="token">${s.token}</div>
+        <div class="symbol">${s.symbol} • ${s.chain.toUpperCase()}</div>
 
         <div class="price">${formatPrice(s.price)}</div>
 
@@ -122,18 +128,21 @@ async function fetchSignals(){
 
         <div class="badges">
           ${s.whaleDetected?`<span class="whale">🐋 Whale</span>`:""}
-          ${s.entrySignal?`<span class="entry">🚀 Entry</span>`:""}
+          <span class="entry">🚀 Entry</span>
+          ${isNew?`<span class="entry">JUST NOW</span>`:""}
         </div>
 
         <div class="insight">
           ${
-            isUnlocked
+            i===0
             ? `
-              <b>🧠 Insight:</b> ${insightData.insight}<br>
-              <b>🎯 Action:</b> ${insightData.action}<br>
-              <b>💎 Confidence:</b> ${insightData.confidence}
+              <b>⚡ LIVE OPPORTUNITY</b><br><br>
+              ${generateInsight(s)}<br><br>
+              <b>Act quickly — early phase detected</b>
             `
-            : `🔒 Unlock full signal intelligence`
+            : `
+              🔒 Premium signal timing + exit strategy
+            `
           }
         </div>
 
@@ -141,19 +150,18 @@ async function fetchSignals(){
       `;
     }).join("");
 
-    // 🔥 PREMIUM CTA
-    const cta = userTier!=="premium"?`
-      <div class="cta">
-        <div>You are seeing limited alpha</div>
-        <button onclick="window.open('${API_URL}/create-payment')">
-          Unlock Smart Money
-        </button>
-      </div>
-    `:"";
+    if(newDetected){
+      audio.play().catch(()=>{});
+    }
 
-    el.innerHTML = html + cta;
+    previousSignals = new Set(
+      signals.map(s=>s.token + s.symbol + s.chain)
+    );
+
+    el.innerHTML = html;
 
   }catch(err){
+    console.log(err);
     el.innerHTML = `<div class="empty">Error loading signals</div>`;
   }
 }
@@ -162,7 +170,7 @@ async function fetchSignals(){
 async function init(){
   await fetchUser();
   await fetchSignals();
-  setInterval(fetchSignals,10000);
+  setInterval(fetchSignals,7000);
 }
 
 init();

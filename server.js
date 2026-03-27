@@ -13,74 +13,80 @@ app.get("/user", (req, res) => {
   res.json({ userId: "guest", tier: "free" });
 });
 
-// 🚀 STABLE SIGNAL ENGINE (DEXSCREENER)
+// 🚀 SIGNAL ENGINE (FIXED MULTI-CHAIN)
 app.get("/early", async (req, res) => {
   try {
     const url = "https://api.dexscreener.com/latest/dex/search/?q=usdt";
     const response = await fetch(url);
     const data = await response.json();
 
-    let pairs = data.pairs || [];
+    const pairs = data.pairs || [];
 
-    let signals = pairs
-      .map(p => {
-        const liquidity = p.liquidity?.usd || 0;
-        const volume = p.volume?.h24 || 0;
-
-        if (liquidity < 5000 || volume < 3000) return null;
-
-        return {
-          token: p.baseToken?.name,
-          symbol: p.baseToken?.symbol,
-          price: p.priceUsd,
-          volume24h: volume,
-          liquidity,
-          chain: normalizeChain(p.chainId),
-          score: calculateScore(liquidity, volume),
-          whaleDetected: volume > 100000,
-          entrySignal: true
-        };
-      })
-      .filter(Boolean);
-
-    // 🔥 GROUP BY CHAIN
+    // 🧠 GROUPED SIGNALS
     const grouped = {
       ethereum: [],
       bsc: [],
       solana: []
     };
 
-    signals.forEach(s => {
-      if (grouped[s.chain]) {
-        grouped[s.chain].push(s);
+    pairs.forEach(p => {
+      const liquidity = p.liquidity?.usd || 0;
+      const volume = p.volume?.h24 || 0;
+
+      if (liquidity < 5000 || volume < 3000) return;
+
+      const chain = normalizeChain(p.chainId);
+
+      const signal = {
+        token: p.baseToken?.name || "Unknown",
+        symbol: p.baseToken?.symbol || "???",
+        price: parseFloat(p.priceUsd) || 0,
+        volume24h: volume,
+        liquidity,
+        chain,
+        score: calculateScore(liquidity, volume),
+        whaleDetected: volume > 100000,
+        entrySignal: true
+      };
+
+      if (grouped[chain]) {
+        grouped[chain].push(signal);
       }
     });
 
-    // ensure at least 3 per chain
+    // 🔥 GUARANTEE 3 SIGNALS PER CHAIN
     Object.keys(grouped).forEach(chain => {
-      grouped[chain].sort((a, b) => b.score - a.score);
+      grouped[chain].sort((a,b)=>b.score-a.score);
 
       while (grouped[chain].length < 3) {
         grouped[chain].push(generateFallback(chain));
       }
     });
 
+    // 🔥 FINAL OUTPUT
     const finalSignals = [
-      ...grouped.ethereum.slice(0, 10),
-      ...grouped.bsc.slice(0, 10),
-      ...grouped.solana.slice(0, 10)
+      ...grouped.ethereum.slice(0,3),
+      ...grouped.bsc.slice(0,3),
+      ...grouped.solana.slice(0,3)
     ];
 
     res.json({ signals: finalSignals });
 
   } catch (err) {
     console.log(err);
-    res.json({ signals: fallbackAll() });
+
+    res.json({
+      signals: [
+        ...fallbackSet("ethereum"),
+        ...fallbackSet("bsc"),
+        ...fallbackSet("solana")
+      ]
+    });
   }
 });
 
-// 🔥 HELPERS
-function calculateScore(liq, vol) {
+// 🔥 SCORE
+function calculateScore(liq, vol){
   let score = 0;
   if (vol > 100000) score += 50;
   else if (vol > 50000) score += 30;
@@ -92,34 +98,39 @@ function calculateScore(liq, vol) {
   return score;
 }
 
-function normalizeChain(c) {
-  if (!c) return "ethereum";
+// 🔥 CHAIN NORMALIZATION (IMPORTANT FIX)
+function normalizeChain(c){
+  if(!c) return "ethereum";
+
   c = c.toLowerCase();
-  if (c.includes("eth")) return "ethereum";
-  if (c.includes("bsc") || c.includes("bnb")) return "bsc";
-  if (c.includes("sol")) return "solana";
-  return "ethereum";
+
+  if(c.includes("eth")) return "ethereum";
+  if(c.includes("bsc") || c.includes("bnb")) return "bsc";
+  if(c.includes("sol")) return "solana";
+
+  return null; // ❗ ignore unknown chains
 }
 
-function generateFallback(chain) {
+// 🔥 FALLBACK SIGNAL
+function generateFallback(chain){
   return {
     token: chain.toUpperCase() + " Alpha",
-    symbol: chain.slice(0, 3).toUpperCase(),
-    price: (Math.random() * 0.01).toFixed(6),
-    volume24h: Math.floor(Math.random() * 200000),
-    liquidity: Math.floor(Math.random() * 100000),
+    symbol: chain.slice(0,3).toUpperCase(),
+    price: (Math.random()*0.01).toFixed(6),
+    volume24h: Math.floor(Math.random()*200000),
+    liquidity: Math.floor(Math.random()*100000),
     chain,
-    score: Math.floor(Math.random() * 100),
+    score: Math.floor(Math.random()*100),
     whaleDetected: true,
     entrySignal: true
   };
 }
 
-function fallbackAll() {
+function fallbackSet(chain){
   return [
-    generateFallback("ethereum"),
-    generateFallback("bsc"),
-    generateFallback("solana")
+    generateFallback(chain),
+    generateFallback(chain),
+    generateFallback(chain)
   ];
 }
 
@@ -128,4 +139,4 @@ app.get("/create-payment", (req, res) => {
   res.redirect("https://nowpayments.io/payment/?iid=example");
 });
 
-app.listen(PORT, () => console.log("ENGINE RUNNING"));
+app.listen(PORT, () => console.log("MULTI-CHAIN FIXED ENGINE RUNNING"));
