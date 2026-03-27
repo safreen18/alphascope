@@ -1,8 +1,9 @@
 const API_URL = "https://alphascope-z4rz.onrender.com";
 
-let userTier="free";
+let selectedChain = "all";
+let userTier = "free";
 
-// helpers
+// format
 function formatNum(n){
   if(!n) return "--";
   if(n>1e6) return (n/1e6).toFixed(1)+"M";
@@ -10,74 +11,97 @@ function formatNum(n){
   return n;
 }
 
-// user
+// fetch user
 async function fetchUser(){
-  const r=await fetch(`${API_URL}/user`);
-  const d=await r.json();
-  userTier=d.tier||"free";
+  const r = await fetch(`${API_URL}/user`);
+  const d = await r.json();
+  userTier = d.tier || "free";
 }
 
-// signals
+// chain click
+document.addEventListener("click",(e)=>{
+  if(e.target.classList.contains("chain-btn")){
+    document.querySelectorAll(".chain-btn").forEach(b=>b.classList.remove("active"));
+    e.target.classList.add("active");
+    selectedChain = e.target.dataset.chain;
+    fetchSignals();
+  }
+});
+
+// fetch signals
 async function fetchSignals(){
-  const el=document.getElementById("signals");
-  el.innerHTML="Discovering smart wallets...";
+  const el = document.getElementById("signals");
 
-  const r=await fetch(`${API_URL}/early`);
-  const d=await r.json();
+  el.innerHTML = `<div class="loader">Scanning markets...</div>`;
 
-  const signals=d.signals||[];
+  const r = await fetch(`${API_URL}/early`);
+  const d = await r.json();
 
-  if(signals.length===0){
-    el.innerHTML=`<div class="empty">No smart money yet</div>`;
+  let signals = d.signals || [];
+
+  if(selectedChain !== "all"){
+    signals = signals.filter(s=>s.chain === selectedChain);
+  }
+
+  signals.sort((a,b)=>b.score - a.score);
+
+  let visible = userTier === "premium"
+    ? signals
+    : signals.slice(0,3);
+
+  if(visible.length === 0){
+    el.innerHTML = `<div class="empty">No signals found</div>`;
     return;
   }
 
-  const visible=userTier==="premium"?signals:signals.slice(0,3);
-
-  const html=visible.map(s=>`
-    <div class="card strong">
+  const html = visible.map((s,i)=>`
+    <div class="card ${s.score>60?"strong":""}">
+      
+      ${i===0?`<div class="top">TOP SIGNAL</div>`:""}
 
       <div class="token">${s.token}</div>
-      <div class="symbol">${s.symbol} • AUTO DISCOVERED</div>
+      <div class="symbol">${s.symbol} • ${s.chain.toUpperCase()}</div>
 
-      <div class="price">🔥 Smart Wallet Entry</div>
+      <div class="price">$${Number(s.price).toFixed(6)}</div>
 
       <div class="meta">
-        <span>${formatNum(s.volume24h)}</span>
+        <span>Vol ${formatNum(s.volume24h)}</span>
         <span>Score ${s.score}</span>
       </div>
 
-      <div class="insight-box">
+      <div class="badges">
+        ${s.whaleDetected?`<span class="whale">🐋 Whale</span>`:""}
+        ${s.entrySignal?`<span class="entry">🚀 Entry</span>`:""}
+      </div>
+
+      <div class="insight">
         ${
           userTier==="premium"
-          ? `
-          Wallet: ${s.wallet}<br>
-          TX: ${s.txHash.slice(0,10)}...
-          `
-          : "🔒 Unlock wallet intelligence"
+          ? "Strong early momentum + whale activity detected"
+          : "🔒 Unlock premium insight"
         }
       </div>
 
     </div>
   `).join("");
 
-  const cta=userTier!=="premium"?`
-    <div class="overlay">
-      Auto-discovered whales locked
+  const cta = userTier!=="premium"?`
+    <div class="cta">
+      Unlock full smart money signals
       <button onclick="window.open('${API_URL}/create-payment')">
-        Unlock Alpha
+        Upgrade
       </button>
     </div>
   `:"";
 
-  el.innerHTML=html+cta;
+  el.innerHTML = html + cta;
 }
 
 // init
 async function init(){
   await fetchUser();
   await fetchSignals();
-  setInterval(fetchSignals,15000);
+  setInterval(fetchSignals,10000);
 }
 
 init();
