@@ -1,94 +1,83 @@
 const API_URL = "https://alphascope-z4rz.onrender.com";
 
-let userTier = "free";
-let selectedChain = "all";
+let userTier="free";
 
-// Helpers
-function safe(v,f="--"){return v??f;}
-function formatPrice(p){return !p?"--":"$"+Number(p).toFixed(6);}
-
-// Chain buttons
-document.addEventListener("click",(e)=>{
-  if(e.target.classList.contains("chain-btn")){
-    document.querySelectorAll(".chain-btn").forEach(b=>b.classList.remove("active"));
-    e.target.classList.add("active");
-    selectedChain = e.target.dataset.chain;
-    fetchSignals();
-  }
-});
-
-// Fetch user
-async function fetchUser(){
-  try{
-    const r = await fetch(`${API_URL}/user`);
-    const d = await r.json();
-    userTier = d.tier || "free";
-  }catch{}
+// helpers
+function formatNum(n){
+  if(!n) return "--";
+  if(n>1e6) return (n/1e6).toFixed(1)+"M";
+  if(n>1e3) return (n/1e3).toFixed(1)+"K";
+  return n;
 }
 
-// Fetch signals
+// user
+async function fetchUser(){
+  const r=await fetch(`${API_URL}/user`);
+  const d=await r.json();
+  userTier=d.tier||"free";
+}
+
+// signals
 async function fetchSignals(){
-  const container = document.getElementById("signals");
-  container.innerHTML = "Loading...";
+  const el=document.getElementById("signals");
+  el.innerHTML="Discovering smart wallets...";
 
-  try{
-    const r = await fetch(`${API_URL}/early`);
-    const d = await r.json();
+  const r=await fetch(`${API_URL}/early`);
+  const d=await r.json();
 
-    let signals = d.signals || [];
+  const signals=d.signals||[];
 
-    // 🔥 FILTER BY CHAIN
-    if(selectedChain !== "all"){
-      signals = signals.filter(s=>s.chain === selectedChain);
-    }
+  if(signals.length===0){
+    el.innerHTML=`<div class="empty">No smart money yet</div>`;
+    return;
+  }
 
-    if(signals.length === 0){
-      container.innerHTML = `<div class="empty">No signals found</div>`;
-      return;
-    }
+  const visible=userTier==="premium"?signals:signals.slice(0,3);
 
-    signals.sort((a,b)=>b.score-a.score);
+  const html=visible.map(s=>`
+    <div class="card strong">
 
-    let visible = userTier==="premium" ? signals : signals.slice(0,2);
+      <div class="token">${s.token}</div>
+      <div class="symbol">${s.symbol} • AUTO DISCOVERED</div>
 
-    const html = visible.map(s=>`
-      <div class="card">
-        <div class="token">${safe(s.token)}</div>
-        <div class="symbol">${safe(s.symbol)} • ${safe(s.chain)}</div>
-        <div class="price">${formatPrice(s.price)}</div>
-        <div class="meta">
-          <span>Vol: ${safe(s.volume)}</span>
-          <span>Score: ${safe(s.score)}</span>
-        </div>
+      <div class="price">🔥 Smart Wallet Entry</div>
+
+      <div class="meta">
+        <span>${formatNum(s.volume24h)}</span>
+        <span>Score ${s.score}</span>
+      </div>
+
+      <div class="insight-box">
         ${
           userTier==="premium"
-          ? `<div>📊 Active</div>`
-          : `<div style="color:red">🔒 Locked</div>`
+          ? `
+          Wallet: ${s.wallet}<br>
+          TX: ${s.txHash.slice(0,10)}...
+          `
+          : "🔒 Unlock wallet intelligence"
         }
       </div>
-    `).join("");
 
-    const cta = userTier!=="premium" ? `
-      <div class="overlay">
-        Unlock Full Signals
-        <button onclick="window.open('${API_URL}/create-payment')">
-          Upgrade
-        </button>
-      </div>
-    ` : "";
+    </div>
+  `).join("");
 
-    container.innerHTML = html + cta;
+  const cta=userTier!=="premium"?`
+    <div class="overlay">
+      Auto-discovered whales locked
+      <button onclick="window.open('${API_URL}/create-payment')">
+        Unlock Alpha
+      </button>
+    </div>
+  `:"";
 
-  }catch(err){
-    container.innerHTML = `<div class="empty">⚠️ Failed to load data</div>`;
-  }
+  el.innerHTML=html+cta;
 }
 
-// Init
+// init
 async function init(){
   await fetchUser();
   await fetchSignals();
-  setInterval(fetchSignals,10000);
+  setInterval(fetchSignals,15000);
 }
 
 init();

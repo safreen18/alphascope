@@ -5,89 +5,209 @@
 <title>AlphaScope</title>
 
 <style>
+
+/* 🌌 ULTRA PREMIUM BACKGROUND */
 body {
   margin:0;
-  background: radial-gradient(circle at top,#0f172a,#020617);
+  background: radial-gradient(circle at top,#020617,#000000);
   color:#e2e8f0;
-  font-family:Segoe UI;
+  font-family: Inter, Segoe UI;
   width:360px;
   padding:16px;
 }
 
-.header{text-align:center;margin-bottom:12px;}
-.header h1{color:#00ffd5;font-size:20px;}
-.sub{font-size:11px;opacity:.5;}
+/* HEADER */
+.header {
+  text-align:center;
+  margin-bottom:14px;
+}
+
+.header h1 {
+  font-size:20px;
+  background: linear-gradient(90deg,#00ffd5,#00c3ff);
+  -webkit-background-clip:text;
+  color:transparent;
+}
+
+.sub {
+  font-size:11px;
+  opacity:.5;
+}
 
 /* CHAIN SELECTOR */
 .chains {
   display:flex;
   gap:6px;
-  margin-bottom:10px;
+  margin-bottom:14px;
 }
 
 .chain-btn {
   flex:1;
-  padding:6px;
-  font-size:11px;
-  border-radius:6px;
+  padding:8px;
+  border-radius:8px;
   border:none;
-  background:#111827;
+  background:rgba(255,255,255,0.05);
   color:#aaa;
-  cursor:pointer;
+  backdrop-filter: blur(6px);
 }
 
 .chain-btn.active {
-  background:#00ffd5;
+  background:linear-gradient(90deg,#00ffd5,#00c3ff);
   color:#000;
   font-weight:bold;
 }
 
-/* CARD */
-.card{
-  background:rgba(255,255,255,0.035);
-  border-radius:14px;
-  padding:14px;
-  margin-bottom:12px;
+/* 🧊 GLASS CARD */
+.card {
+  background: rgba(255,255,255,0.04);
+  border-radius:16px;
+  padding:16px;
+  margin-bottom:14px;
+  backdrop-filter: blur(12px);
+  border:1px solid rgba(255,255,255,0.08);
+  box-shadow:0 10px 40px rgba(0,0,0,0.9);
+  position:relative;
+  transition:0.3s;
 }
 
-.token{font-weight:bold;}
-.symbol{font-size:11px;opacity:.5;}
-
-.price{color:#00ffd5;margin:6px 0;}
-.meta{font-size:11px;opacity:.7;display:flex;justify-content:space-between;}
-
-.overlay{
-  text-align:center;
-  padding:12px;
-  background:rgba(0,0,0,.7);
-  border-radius:10px;
+/* HOVER EFFECT */
+.card:hover {
+  transform:scale(1.02);
 }
 
-button{
-  margin-top:8px;
-  padding:8px;
-  width:100%;
-  background:#00ffd5;
-  border:none;
+/* STRONG SIGNAL */
+.card.strong {
+  border:1px solid rgba(0,255,213,0.6);
+  box-shadow:0 0 20px rgba(0,255,213,0.6);
+}
+
+/* TOP BADGE */
+.top-badge {
+  position:absolute;
+  top:10px;
+  right:10px;
+  font-size:10px;
+  background:linear-gradient(90deg,#00ffd5,#00c3ff);
+  color:#000;
+  padding:3px 7px;
   border-radius:6px;
 }
 
-.empty{
-  text-align:center;
+/* TOKEN */
+.token {
+  font-size:15px;
+  font-weight:600;
+}
+
+.symbol {
+  font-size:11px;
+  opacity:.5;
+}
+
+/* PRICE */
+.price {
+  font-size:20px;
+  margin:10px 0;
+  color:#00ffd5;
+}
+
+/* META GRID */
+.meta {
+  display:flex;
+  justify-content:space-between;
+  font-size:11px;
+  opacity:.7;
+}
+
+/* BADGES */
+.badges {
+  margin-top:10px;
+  display:flex;
+  gap:6px;
+}
+
+.badge {
+  font-size:10px;
+  padding:3px 7px;
+  border-radius:8px;
+}
+
+.whale {
+  background:linear-gradient(90deg,#9333ea,#6d28d9);
+}
+
+.entry {
+  background:linear-gradient(90deg,#00ffd5,#00c3ff);
+  color:#000;
+}
+
+/* 🧠 INSIGHT BOX */
+.insight-box {
+  margin-top:12px;
+  padding:12px;
+  border-radius:12px;
+  background:rgba(0,0,0,0.6);
+  border:1px solid rgba(255,255,255,0.06);
+}
+
+.insight-text {
   font-size:12px;
+  margin-bottom:6px;
+}
+
+.action-text {
+  font-size:12px;
+  color:#00ffd5;
+}
+
+.confidence {
+  font-size:11px;
+  opacity:.7;
+}
+
+/* CTA */
+.overlay {
+  padding:16px;
+  border-radius:14px;
+  background:linear-gradient(180deg,rgba(0,255,213,0.1),rgba(0,0,0,0.8));
+  text-align:center;
+}
+
+.cta-title {
+  font-size:14px;
+}
+
+.cta-sub {
+  font-size:11px;
+  opacity:.7;
+}
+
+button {
+  margin-top:12px;
+  padding:10px;
+  width:100%;
+  border:none;
+  border-radius:10px;
+  background:linear-gradient(90deg,#00ffd5,#00c3ff);
+  font-weight:bold;
+  font-size:13px;
+}
+
+.empty {
+  text-align:center;
   opacity:.6;
 }
+
 </style>
 </head>
 
 <body>
 
 <div class="header">
-  <h1>🚀 AlphaScope</h1>
+  <h1>AlphaScope</h1>
   <div class="sub">Smart Money Terminal</div>
 </div>
 
-<!-- 🔥 CHAIN SELECTOR -->
 <div class="chains">
   <button class="chain-btn active" data-chain="all">ALL</button>
   <button class="chain-btn" data-chain="ethereum">ETH</button>
@@ -95,7 +215,7 @@ button{
   <button class="chain-btn" data-chain="solana">SOL</button>
 </div>
 
-<div id="signals">Loading signals...</div>
+<div id="signals">Loading...</div>
 
 <script src="popup.js"></script>
 
