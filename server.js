@@ -8,62 +8,94 @@ app.use(express.json());
 
 const PORT = 3000;
 
+// 🧠 MEMORY DATABASE
+let trackedSignals = {};
+let history = [];
+
 // USER
 app.get("/user", (req, res) => {
   res.json({ userId: "guest", tier: "free" });
 });
 
-// 🚀 SIGNAL ENGINE (FIXED MULTI-CHAIN)
+// 🚀 SIGNAL ENGINE
 app.get("/early", async (req, res) => {
   try {
-    const url = "https://api.dexscreener.com/latest/dex/search/?q=usdt";
-    const response = await fetch(url);
-    const data = await response.json();
 
-    const pairs = data.pairs || [];
+    const queries = ["ethereum", "bnb", "solana"];
+    let allPairs = [];
 
-    // 🧠 GROUPED SIGNALS
+    for (let q of queries) {
+      const url = `https://api.dexscreener.com/latest/dex/search/?q=${q}`;
+      const r = await fetch(url);
+      const d = await r.json();
+      allPairs = allPairs.concat(d.pairs || []);
+    }
+
     const grouped = {
       ethereum: [],
       bsc: [],
       solana: []
     };
 
-    pairs.forEach(p => {
+    allPairs.forEach(p => {
       const liquidity = p.liquidity?.usd || 0;
       const volume = p.volume?.h24 || 0;
 
-      if (liquidity < 5000 || volume < 3000) return;
+      if (liquidity < 10000 || volume < 5000) return;
 
       const chain = normalizeChain(p.chainId);
+      if (!chain) return;
 
-      const signal = {
-        token: p.baseToken?.name || "Unknown",
-        symbol: p.baseToken?.symbol || "???",
-        price: parseFloat(p.priceUsd) || 0,
+      const id = p.pairAddress;
+      const currentPrice = parseFloat(p.priceUsd) || 0;
+
+      // 🧠 TRACK ENTRY
+      if (!trackedSignals[id]) {
+        trackedSignals[id] = {
+          entryPrice: currentPrice,
+          createdAt: Date.now(),
+          token: p.baseToken?.name,
+          symbol: p.baseToken?.symbol,
+          chain
+        };
+      }
+
+      const entry = trackedSignals[id].entryPrice;
+      const pnl = ((currentPrice - entry) / entry) * 100;
+
+      // 🔥 ADD TO HISTORY IF BIG MOVE
+      if (pnl > 10 && !history.find(h => h.id === id)) {
+        history.push({
+          id,
+          token: p.baseToken?.name,
+          symbol: p.baseToken?.symbol,
+          chain,
+          pnl: pnl.toFixed(2),
+          time: Date.now()
+        });
+
+        // LIMIT HISTORY SIZE
+        if (history.length > 50) history.shift();
+      }
+
+      grouped[chain].push({
+        token: p.baseToken?.name,
+        symbol: p.baseToken?.symbol,
+        price: currentPrice,
         volume24h: volume,
         liquidity,
         chain,
+        pairAddress: id,
         score: calculateScore(liquidity, volume),
-        whaleDetected: volume > 100000,
-        entrySignal: true
-      };
-
-      if (grouped[chain]) {
-        grouped[chain].push(signal);
-      }
+        pnl: pnl.toFixed(2),
+        isWin: pnl > 0
+      });
     });
 
-    // 🔥 GUARANTEE 3 SIGNALS PER CHAIN
     Object.keys(grouped).forEach(chain => {
       grouped[chain].sort((a,b)=>b.score-a.score);
-
-      while (grouped[chain].length < 3) {
-        grouped[chain].push(generateFallback(chain));
-      }
     });
 
-    // 🔥 FINAL OUTPUT
     const finalSignals = [
       ...grouped.ethereum.slice(0,3),
       ...grouped.bsc.slice(0,3),
@@ -74,33 +106,33 @@ app.get("/early", async (req, res) => {
 
   } catch (err) {
     console.log(err);
-
-    res.json({
-      signals: [
-        ...fallbackSet("ethereum"),
-        ...fallbackSet("bsc"),
-        ...fallbackSet("solana")
-      ]
-    });
+    res.json({ signals: [] });
   }
 });
 
-// 🔥 SCORE
+// 📊 HISTORY ENDPOINT
+app.get("/history", (req, res) => {
+  res.json({ history: history.reverse() });
+});
+
+// SCORE
 function calculateScore(liq, vol){
   let score = 0;
-  if (vol > 100000) score += 50;
-  else if (vol > 50000) score += 30;
+
+  if (vol > 200000) score += 50;
+  else if (vol > 100000) score += 35;
+  else if (vol > 50000) score += 20;
   else score += 10;
 
-  if (liq < 100000) score += 30;
+  if (liq < 200000) score += 30;
   else score += 10;
 
   return score;
 }
 
-// 🔥 CHAIN NORMALIZATION (IMPORTANT FIX)
+// CHAIN
 function normalizeChain(c){
-  if(!c) return "ethereum";
+  if(!c) return null;
 
   c = c.toLowerCase();
 
@@ -108,30 +140,7 @@ function normalizeChain(c){
   if(c.includes("bsc") || c.includes("bnb")) return "bsc";
   if(c.includes("sol")) return "solana";
 
-  return null; // ❗ ignore unknown chains
-}
-
-// 🔥 FALLBACK SIGNAL
-function generateFallback(chain){
-  return {
-    token: chain.toUpperCase() + " Alpha",
-    symbol: chain.slice(0,3).toUpperCase(),
-    price: (Math.random()*0.01).toFixed(6),
-    volume24h: Math.floor(Math.random()*200000),
-    liquidity: Math.floor(Math.random()*100000),
-    chain,
-    score: Math.floor(Math.random()*100),
-    whaleDetected: true,
-    entrySignal: true
-  };
-}
-
-function fallbackSet(chain){
-  return [
-    generateFallback(chain),
-    generateFallback(chain),
-    generateFallback(chain)
-  ];
+  return null;
 }
 
 // PAYMENT
@@ -139,4 +148,4 @@ app.get("/create-payment", (req, res) => {
   res.redirect("https://nowpayments.io/payment/?iid=example");
 });
 
-app.listen(PORT, () => console.log("MULTI-CHAIN FIXED ENGINE RUNNING"));
+app.listen(PORT, () => console.log("📊 TRACK RECORD ENGINE LIVE"));
