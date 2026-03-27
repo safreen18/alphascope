@@ -1,95 +1,103 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>AlphaScope</title>
-  <style>
-    body {
-      margin: 0;
-      background: #0b0f1a;
-      color: white;
-      font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", Arial, sans-serif;
-      width: 350px;
-    }
+<meta charset="UTF-8">
+<title>AlphaScope</title>
 
-    .header {
-      padding: 15px;
-      font-size: 18px;
-      font-weight: bold;
-      text-align: center;
-      background: linear-gradient(90deg,#0f172a,#1e293b);
-      border-bottom: 1px solid #1f2a44;
-    }
+<style>
+body {
+  margin:0;
+  background: radial-gradient(circle at top,#0f172a,#020617);
+  color:#e2e8f0;
+  font-family:Segoe UI;
+  width:360px;
+  padding:16px;
+}
 
-    .section-title {
-      padding: 8px 12px;
-      font-size: 12px;
-      opacity: 0.7;
-      text-transform: uppercase;
-    }
+.header{text-align:center;margin-bottom:12px;}
+.header h1{color:#00ffd5;font-size:20px;}
+.sub{font-size:11px;opacity:.5;}
 
-    .controls { padding: 10px; text-align: center; }
-    button {
-      background: #2563eb;
-      border: none;
-      padding: 10px 15px;
-      border-radius: 8px;
-      color: white;
-      cursor: pointer;
-    }
+/* CHAIN SELECTOR */
+.chains {
+  display:flex;
+  gap:6px;
+  margin-bottom:10px;
+}
 
-    .loader { text-align:center; padding:10px; opacity:0.7; font-size:13px; }
+.chain-btn {
+  flex:1;
+  padding:6px;
+  font-size:11px;
+  border-radius:6px;
+  border:none;
+  background:#111827;
+  color:#aaa;
+  cursor:pointer;
+}
 
-    .signals { padding: 10px; }
+.chain-btn.active {
+  background:#00ffd5;
+  color:#000;
+  font-weight:bold;
+}
 
-    .card {
-      background: #111827;
-      border-radius: 12px;
-      padding: 12px;
-      margin-bottom: 10px;
-      border: 1px solid #1f2937;
-      transition: all 0.3s ease;
-      position: relative;
-      font-family: inherit;
-    }
+/* CARD */
+.card{
+  background:rgba(255,255,255,0.035);
+  border-radius:14px;
+  padding:14px;
+  margin-bottom:12px;
+}
 
-    .card.new { border: 1px solid #22c55e; box-shadow:0 0 12px rgba(34,197,94,0.6); animation: pulse 0.6s ease; }
-    .card.high { border-left: 4px solid #ef4444; box-shadow:0 0 10px rgba(239,68,68,0.5); }
-    .card.medium { border-left: 4px solid #f59e0b; }
-    .card.low { border-left: 4px solid #6b7280; opacity:0.85; }
-    .card.recent { opacity:0.6; transform:scale(0.98); }
+.token{font-weight:bold;}
+.symbol{font-size:11px;opacity:.5;}
 
-    .token { font-weight:bold; font-size:16px; font-family: inherit; }
-    .meta { font-size:12px; opacity:0.75; font-family: inherit; }
-    .badge { display:inline-block; padding:2px 6px; border-radius:6px; font-size:10px; margin-left:5px; font-family: inherit; }
-    .whale { background:#1d4ed8; } 
-    .early { background:#059669; } 
-    .spike { background:#facc15; }
-    .strength.high { color:#ef4444; } 
-    .strength.medium { color:#f59e0b; } 
-    .strength.low { color:#9ca3af; }
+.price{color:#00ffd5;margin:6px 0;}
+.meta{font-size:11px;opacity:.7;display:flex;justify-content:space-between;}
 
-    .new-badge { position:absolute; top:8px; right:8px; background:#22c55e; font-size:10px; padding:3px 6px; border-radius:6px; animation: fadeOut 4s forwards; }
+.overlay{
+  text-align:center;
+  padding:12px;
+  background:rgba(0,0,0,.7);
+  border-radius:10px;
+}
 
-    @keyframes fadeOut { 0% {opacity:1;} 80% {opacity:1;} 100% {opacity:0;} }
-    @keyframes pulse { 0% {transform:scale(0.98);} 50% {transform:scale(1.02);} 100% {transform:scale(1);} }
+button{
+  margin-top:8px;
+  padding:8px;
+  width:100%;
+  background:#00ffd5;
+  border:none;
+  border-radius:6px;
+}
 
-  </style>
+.empty{
+  text-align:center;
+  font-size:12px;
+  opacity:.6;
+}
+</style>
 </head>
+
 <body>
-  <div class="header">🚀 AlphaScope</div>
-  <div class="controls"><button id="scanBtn">Scan Market</button></div>
-  <div class="loader" id="loader">⏳ Loading signals...</div>
 
-  <div class="section-title">🏆 Top 3 Hot Tokens</div>
-  <div class="signals" id="hotLeaderboard"></div>
+<div class="header">
+  <h1>🚀 AlphaScope</h1>
+  <div class="sub">Smart Money Terminal</div>
+</div>
 
-  <div class="section-title">🔥 Live Signals</div>
-  <div class="signals" id="liveSignals"></div>
+<!-- 🔥 CHAIN SELECTOR -->
+<div class="chains">
+  <button class="chain-btn active" data-chain="all">ALL</button>
+  <button class="chain-btn" data-chain="ethereum">ETH</button>
+  <button class="chain-btn" data-chain="bsc">BSC</button>
+  <button class="chain-btn" data-chain="solana">SOL</button>
+</div>
 
-  <div class="section-title">🕒 Recently Fired</div>
-  <div class="signals" id="recentSignals"></div>
+<div id="signals">Loading signals...</div>
 
-  <script src="popup.js"></script>
+<script src="popup.js"></script>
+
 </body>
 </html>

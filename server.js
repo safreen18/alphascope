@@ -1,199 +1,113 @@
-import express from "express";
-import fetch from "node-fetch";
-import cors from "cors";
-import dotenv from "dotenv";
-
-dotenv.config();
+const express = require("express");
+const fetch = require("node-fetch");
+const cors = require("cors");
 
 const app = express();
-const PORT = 3000;
-
 app.use(cors());
 app.use(express.json());
 
-// =========================
-// 🔥 CONFIG
-// =========================
-const CHAT_ID = "1710140755";
-const TELEGRAM_TOKEN = "8760490176:AAGNBjqvDiDa5nSId2nOC-bsuTBKIrq952c";
+const PORT = 3000;
 
-// =========================
-// 📤 TELEGRAM
-// =========================
-async function sendTelegram(text) {
+// USER
+app.get("/user", (req, res) => {
+  res.json({ userId: "guest", tier: "free" });
+});
+
+// 🚀 SIGNAL ENGINE (STABLE VERSION)
+app.get("/early", async (req, res) => {
   try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: CHAT_ID,
-        text
-      })
-    });
-  } catch (err) {
-    console.error("Telegram error:", err);
-  }
-}
+    console.log("Fetching signals...");
 
-// =========================
-// 🔍 SIGNAL ENGINE + WHALES
-// =========================
-async function fetchSignals() {
-  try {
-    const res = await fetch("https://api.dexscreener.com/latest/dex/search?q=eth");
-    const text = await res.text();
+    const url = "https://api.dexscreener.com/latest/dex/search/?q=token";
+    const response = await fetch(url);
+    const data = await response.json();
 
-    if (!text.startsWith("{")) return fallbackSignals();
+    if (!data.pairs || data.pairs.length === 0) {
+      console.log("No pairs found → using fallback");
+      return res.json({ signals: getFallbackSignals() });
+    }
 
-    const data = JSON.parse(text);
+    const signals = data.pairs.slice(0, 20).map(pair => {
+      const liquidity = pair.liquidity?.usd || 0;
+      const volume = pair.volume?.h24 || 0;
+      const price = pair.priceUsd || 0;
 
-    if (!data.pairs) return fallbackSignals();
+      // 🔥 RELAXED FILTERS (IMPORTANT)
+      if (liquidity < 1000 || volume < 1000) return null;
 
-    const signals = data.pairs
-      .map(p => {
-        const symbol = p.baseToken?.symbol || "";
-        const tokenName = p.baseToken?.name || "";
+      let score = 0;
 
-        // ❌ remove stablecoins
-        const blacklist = ["USDT", "USDC", "DAI", "BUSD"];
-        if (blacklist.includes(symbol.toUpperCase())) return null;
+      if (volume > 100000) score += 40;
+      else if (volume > 50000) score += 25;
+      else score += 10;
 
-        const liq = p.liquidity?.usd || 0;
-        const vol = p.volume?.h24 || 0;
+      if (liquidity < 100000) score += 30;
+      else score += 10;
 
-        if (liq < 500 || vol < 1000) return null;
+      score += 10;
 
-        const ratio = vol / (liq || 1);
+      const chain = pair.chainId || "unknown";
 
-        // 🐋 WHALE DETECTION
-        let whaleDetected = false;
-        let whaleStrength = "LOW";
+      return {
+        token: pair.baseToken?.name || "Unknown",
+        symbol: pair.baseToken?.symbol || "???",
+        price,
+        liquidity,
+        volume,
+        score,
+        chain
+      };
+    }).filter(Boolean);
 
-        if (ratio > 1.5) {
-          whaleDetected = true;
-          whaleStrength = "MEDIUM";
-        }
+    // 🔥 If still empty → fallback
+    if (signals.length === 0) {
+      console.log("Filtered empty → fallback");
+      return res.json({ signals: getFallbackSignals() });
+    }
 
-        if (ratio > 3) {
-          whaleStrength = "HIGH";
-        }
+    console.log("Signals count:", signals.length);
 
-        // 🔥 SIGNAL STRENGTH
-        let strength = "LOW";
-        if (ratio > 1.2) strength = "MEDIUM";
-        if (ratio > 2) strength = "HIGH";
-
-        // 🧠 SCORE BOOST FROM WHALES
-        let score = ratio * 5;
-        if (whaleDetected) score += 5;
-        if (whaleStrength === "HIGH") score += 5;
-
-        return {
-          id: `${p.chainId}_${symbol}_${p.pairAddress}`,
-          token: tokenName,
-          symbol,
-          chain: (p.chainId || "N/A").toUpperCase(),
-          liquidity: Math.round(liq),
-          volume24h: Math.round(vol),
-          score: score.toFixed(1),
-          entrySignal: ratio > 1.2,
-          strength,
-          whaleDetected,
-          whaleStrength
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 6);
-
-    if (signals.length === 0) return fallbackSignals();
-
-    return signals;
+    res.json({ signals });
 
   } catch (err) {
-    console.error("Fetch error:", err);
-    return fallbackSignals();
+    console.log("ERROR:", err.message);
+    res.json({ signals: getFallbackSignals() });
   }
-}
+});
 
-// =========================
-// 🛟 FALLBACK
-// =========================
-function fallbackSignals() {
+// 🧠 FALLBACK SIGNALS (CRITICAL)
+function getFallbackSignals() {
   return [
     {
-      id: "1",
-      token: "Alpha Whale",
-      symbol: "WHALE",
-      chain: "ETH",
-      liquidity: 5000,
-      volume24h: 25000,
-      score: "12.5",
-      entrySignal: true,
-      strength: "HIGH",
-      whaleDetected: true,
-      whaleStrength: "HIGH"
+      token: "Fallback ETH",
+      symbol: "FETH",
+      price: 0.0012,
+      volume: 12000,
+      score: 65,
+      chain: "ethereum"
+    },
+    {
+      token: "Fallback BSC",
+      symbol: "FBSC",
+      price: 0.0008,
+      volume: 9000,
+      score: 58,
+      chain: "bsc"
+    },
+    {
+      token: "Fallback SOL",
+      symbol: "FSOL",
+      price: 0.0021,
+      volume: 15000,
+      score: 72,
+      chain: "solana"
     }
   ];
 }
 
-// =========================
-// 🚨 ALERT ENGINE
-// =========================
-const sentSignals = {};
-
-async function runAlerts() {
-  console.log("🔄 Scanning market...");
-
-  const signals = await fetchSignals();
-
-  for (const s of signals) {
-
-    if (!s.entrySignal) continue;
-
-    if (sentSignals[s.id]) continue;
-
-    sentSignals[s.id] = true;
-
-    const msg = `
-🚨 AlphaScope Whale Signal
-
-${s.token} (${s.symbol})
-Chain: ${s.chain}
-
-Liquidity: $${s.liquidity}
-Volume: $${s.volume24h}
-
-🐋 Whale: ${s.whaleDetected ? "YES" : "NO"}
-🐋 Strength: ${s.whaleStrength}
-
-Strength: ${s.strength}
-Score: ${s.score}
-
-⚡ Smart Money Entry
-`;
-
-    await sendTelegram(msg);
-  }
-}
-
-// =========================
-// 🔁 AUTO RUN
-// =========================
-setInterval(runAlerts, 15000);
-
-// =========================
-// 🌐 API
-// =========================
-app.get("/early", async (req, res) => {
-  const signals = await fetchSignals();
-
-  res.json({
-    signals
-  });
+// PAYMENT
+app.get("/create-payment", (req, res) => {
+  res.redirect("https://nowpayments.io/payment/?iid=example");
 });
 
-// =========================
-app.listen(PORT, () => {
-  console.log("🚀 AlphaScope WHALE ENGINE LIVE");
-});
+app.listen(PORT, () => console.log("Server running on port", PORT));

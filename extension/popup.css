@@ -1,0 +1,95 @@
+body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background:#0d0d0d; 
+    color:#fff; 
+    padding:15px; 
+    width:420px;
+}
+
+/* HEADER */
+h1 { 
+    font-size:1.8em; 
+    text-align:center; 
+    color:#00ffe0; 
+    text-shadow: 0 0 10px #00ffe0;
+}
+
+h2 { 
+    font-size:1.2em; 
+    margin-top:15px; 
+    color:#ffcc00; 
+}
+
+/* BUTTONS */
+button { 
+    padding:10px; 
+    margin:10px 0; 
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    background: linear-gradient(90deg,#ff9900,#ffcc00);
+    color:#000;
+    font-weight:bold;
+    width:100%;
+}
+
+#upgradeBtn { 
+    background: linear-gradient(90deg,#00ccff,#00ffee);
+}
+
+/* CARDS */
+.card {
+    background:#1a1a1a;
+    padding:14px;
+    margin:10px 0;
+    border-radius:12px;
+    transition: all 0.3s ease;
+    position:relative;
+}
+
+/* CHAIN COLORS */
+.chain-ETH { border-left:4px solid #3c3cff; }
+.chain-BSC { border-left:4px solid #f3ba2f; }
+.chain-SOL { border-left:4px solid #14f195; }
+
+/* HOT TOKEN */
+.hot {
+    border:2px solid #ff6600;
+    box-shadow:0 0 10px #ff6600;
+}
+
+/* SPIKE */
+.card.spike {
+    border:2px solid red;
+    box-shadow:0 0 20px red;
+    animation: spikePulse 1s infinite;
+}
+
+.spike-badge {
+    background:red;
+    padding:3px 6px;
+    border-radius:4px;
+    font-size:0.8em;
+}
+
+/* BADGES */
+.premium-badge { color:gold; }
+.new-badge { background:#ff0; color:#000; padding:2px 5px; border-radius:3px; }
+
+/* STRENGTH */
+.strength.high { color:#00ff00; }
+.strength.medium { color:#ffff00; }
+.strength.low { color:#ff6600; }
+
+/* SCROLL */
+#liveSignals, #recentSignals, #hotLeaderboard {
+    max-height:220px;
+    overflow-y:auto;
+}
+
+/* ANIMATIONS */
+@keyframes spikePulse {
+    0% { box-shadow:0 0 10px red; }
+    50% { box-shadow:0 0 30px red; }
+    100% { box-shadow:0 0 10px red; }
+}

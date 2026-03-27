@@ -1,154 +1,94 @@
-const API_URL = "https://alphascope-z4rz.onrender.com/early";
+const API_URL = "https://alphascope-z4rz.onrender.com";
 
-let previousSignals = new Set();
-let signalHistory = JSON.parse(localStorage.getItem("signalHistory") || "[]");
-let firstLoad = true;
-let alertedSignals = new Set();
+let userTier = "free";
+let selectedChain = "all";
 
-const liveContainer = document.getElementById("liveSignals");
-const recentContainer = document.getElementById("recentSignals");
-const leaderboardContainer = document.getElementById("hotLeaderboard");
-const loader = document.getElementById("loader");
-const scanBtn = document.getElementById("scanBtn");
+// Helpers
+function safe(v,f="--"){return v??f;}
+function formatPrice(p){return !p?"--":"$"+Number(p).toFixed(6);}
 
-const strengthPriority = { HIGH:3, MEDIUM:2, LOW:1 };
-const alertAudio = new Audio("https://freesound.org/data/previews/316/316847_4939433-lq.mp3");
+// Chain buttons
+document.addEventListener("click",(e)=>{
+  if(e.target.classList.contains("chain-btn")){
+    document.querySelectorAll(".chain-btn").forEach(b=>b.classList.remove("active"));
+    e.target.classList.add("active");
+    selectedChain = e.target.dataset.chain;
+    fetchSignals();
+  }
+});
 
-// Emojis
-const EMOJIS = { whale:"🐋", early:"💎", spike:"⚡" };
+// Fetch user
+async function fetchUser(){
+  try{
+    const r = await fetch(`${API_URL}/user`);
+    const d = await r.json();
+    userTier = d.tier || "free";
+  }catch{}
+}
 
 // Fetch signals
-async function fetchSignals(manual=false){
-    try{
-        loader.innerText = manual ? "🔍 Scanning market..." : "🔄 Live scanning...";
-        const res = await fetch(API_URL);
-        const data = await res.json();
-        let signals = data.signals || [];
-        signals.sort((a,b) => (strengthPriority[b.strength]||0) - (strengthPriority[a.strength]||0));
-        processSignals(signals);
-    }catch(err){
-        loader.innerText = "❌ Error fetching signals";
-        console.error(err);
+async function fetchSignals(){
+  const container = document.getElementById("signals");
+  container.innerHTML = "Loading...";
+
+  try{
+    const r = await fetch(`${API_URL}/early`);
+    const d = await r.json();
+
+    let signals = d.signals || [];
+
+    // 🔥 FILTER BY CHAIN
+    if(selectedChain !== "all"){
+      signals = signals.filter(s=>s.chain === selectedChain);
     }
-}
 
-// Process signals + render leaderboard/live/recent
-function processSignals(signals){
-    loader.innerText = "";
-    const newSet = new Set();
-    const newSignals = [];
+    if(signals.length === 0){
+      container.innerHTML = `<div class="empty">No signals found</div>`;
+      return;
+    }
 
-    signals.forEach(signal=>{
-        const id = signal.token + signal.price;
-        newSet.add(id);
-        const isNew = !previousSignals.has(id) && !firstLoad;
+    signals.sort((a,b)=>b.score-a.score);
 
-        if(isNew){
-            signal.timestamp = Date.now();
-            signalHistory.unshift(signal);
-            newSignals.push(id);
-            if((signal.strength==="HIGH"||signal.strength==="MEDIUM"||signal.spike) && !alertedSignals.has(id)){
-                triggerAlert(signal);
-                alertedSignals.add(id);
-            }
+    let visible = userTier==="premium" ? signals : signals.slice(0,2);
+
+    const html = visible.map(s=>`
+      <div class="card">
+        <div class="token">${safe(s.token)}</div>
+        <div class="symbol">${safe(s.symbol)} • ${safe(s.chain)}</div>
+        <div class="price">${formatPrice(s.price)}</div>
+        <div class="meta">
+          <span>Vol: ${safe(s.volume)}</span>
+          <span>Score: ${safe(s.score)}</span>
+        </div>
+        ${
+          userTier==="premium"
+          ? `<div>📊 Active</div>`
+          : `<div style="color:red">🔒 Locked</div>`
         }
-    });
+      </div>
+    `).join("");
 
-    signalHistory = signalHistory.slice(0,20);
-    localStorage.setItem("signalHistory", JSON.stringify(signalHistory));
+    const cta = userTier!=="premium" ? `
+      <div class="overlay">
+        Unlock Full Signals
+        <button onclick="window.open('${API_URL}/create-payment')">
+          Upgrade
+        </button>
+      </div>
+    ` : "";
 
-    renderLeaderboard(signals);
-    renderLive(signals,newSignals);
-    renderRecent();
+    container.innerHTML = html + cta;
 
-    previousSignals = newSet;
-    firstLoad = false;
+  }catch(err){
+    container.innerHTML = `<div class="empty">⚠️ Failed to load data</div>`;
+  }
 }
 
-// Browser alert + sound
-function triggerAlert(signal){
-    if(Notification.permission==="granted"){
-        new Notification(`🚀 AlphaScope Alert`,{
-            body:`${signal.token} (${signal.symbol}) | Price:$${signal.price} | Strength:${signal.strength}${signal.spike?" | ⚡ Spike":""} ${signal.whale?"| 🐋 Whale":""} ${signal.early?"| 💎 Early":""}`,
-            icon:"https://i.imgur.com/3ZQ3VQH.png"
-        });
-    } else if(Notification.permission!=="denied"){ Notification.requestPermission(); }
-    alertAudio.play().catch(e=>console.log("Audio error:",e));
+// Init
+async function init(){
+  await fetchUser();
+  await fetchSignals();
+  setInterval(fetchSignals,10000);
 }
 
-// Render leaderboard Top 3
-function renderLeaderboard(signals) {
-    const topSignals = [...signals]
-        .sort((a,b)=>{
-            if(b.spike && !a.spike) return 1;
-            if(a.spike && !b.spike) return -1;
-            return (b.score||0) - (a.score||0);
-        })
-        .slice(0,3);
-
-    leaderboardContainer.innerHTML = "";
-    topSignals.forEach((signal,index)=>{
-        const card = document.createElement("div");
-        card.className = "card high";
-        if(index===0) card.style.boxShadow="0 0 15px rgba(239,68,68,0.9)";
-        let badges = "";
-        if(signal.whale) badges += "🐋 WHALE ";
-        if(signal.early) badges += "💎 EARLY ";
-        if(signal.spike) badges += "⚡ SPIKE ";
-        card.innerHTML = `
-            <div class="token">${signal.token} (${signal.symbol}) ${badges}</div>
-            <div class="meta">💰 Price: $${signal.price}</div>
-            <div class="meta">📊 Score: ${signal.score} | 🔥 Strength: ${signal.strength}</div>
-        `;
-        leaderboardContainer.appendChild(card);
-    });
-}
-
-// Render live
-function renderLive(signals,newSignals){
-    liveContainer.innerHTML = "";
-    signals.forEach(signal=>{
-        const id = signal.token+signal.price;
-        const isNew = newSignals.includes(id);
-        const card = createCard(signal,isNew,false);
-        liveContainer.appendChild(card);
-    });
-}
-
-// Render recent
-function renderRecent(){
-    recentContainer.innerHTML = "";
-    signalHistory.forEach(signal=>{
-        const card = createCard(signal,false,true);
-        recentContainer.appendChild(card);
-    });
-}
-
-// Card builder
-function createCard(signal,isNew,isRecent){
-    const card = document.createElement("div");
-    let strengthClass = (signal.strength||"low").toLowerCase();
-    card.className = `card ${strengthClass}`;
-    if(isNew) card.classList.add("new");
-    if(isRecent) card.classList.add("recent");
-
-    let badges = "";
-    if(signal.whale) badges += "🐋 WHALE ";
-    if(signal.early) badges += "💎 EARLY ";
-    if(signal.spike) badges += "⚡ SPIKE ";
-
-    card.innerHTML = `
-      <div class="token">${signal.token} (${signal.symbol}) ${badges}</div>
-      <div class="meta">💰 Price: $${signal.price}</div>
-      <div class="meta">💧 Liquidity: $${signal.liquidity}</div>
-      <div class="meta">📊 Volume: $${signal.volume}</div>
-      <div class="meta">⚡ Score: ${signal.score} | 🔥 Strength: <span class="strength ${strengthClass}">${signal.strength}</span></div>
-      ${isNew?'<div class="new-badge">NEW</div>':''}
-    `;
-    return card;
-}
-
-// Auto-refresh
-function startLiveFeed(){ fetchSignals(); setInterval(fetchSignals,12000); }
-scanBtn.addEventListener("click",()=>fetchSignals(true));
-startLiveFeed();
+init();
