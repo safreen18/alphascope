@@ -9,11 +9,18 @@ body{
   margin:0;
   width:360px;
   padding:16px;
-  background:#020617;
+  background:radial-gradient(circle at top,#0f172a,#020617);
   color:#fff;
   font-family:Inter;
 }
 
+/* HEADER */
+.header{
+  margin-bottom:10px;
+  font-weight:600;
+}
+
+/* TABS */
 .tab{
   display:flex;
   gap:6px;
@@ -35,13 +42,77 @@ body{
   color:#000;
 }
 
+/* CARD */
 .card{
-  padding:12px;
-  border-radius:12px;
-  background:#111;
-  margin-bottom:10px;
+  padding:14px;
+  border-radius:14px;
+  background:rgba(255,255,255,0.04);
+  margin-bottom:12px;
+  position:relative;
 }
 
+/* LOCK */
+.locked{
+  filter:blur(3px);
+  opacity:0.6;
+}
+
+.lock-overlay{
+  position:absolute;
+  inset:0;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  font-size:12px;
+  background:rgba(0,0,0,0.6);
+  border-radius:14px;
+}
+
+/* INSIGHT */
+.insight{
+  margin-top:8px;
+  font-size:12px;
+  line-height:1.4;
+}
+
+/* URGENCY BOX */
+.urgency{
+  margin-top:14px;
+  padding:14px;
+  border-radius:14px;
+  background:linear-gradient(90deg,#ef4444,#f97316);
+  text-align:center;
+  animation:pulse 1.5s infinite;
+}
+
+@keyframes pulse{
+  0%{transform:scale(1);}
+  50%{transform:scale(1.02);}
+  100%{transform:scale(1);}
+}
+
+.timer{
+  font-size:18px;
+  font-weight:700;
+}
+
+.spots{
+  font-size:12px;
+  margin-top:4px;
+}
+
+/* CTA */
+.cta{
+  margin-top:10px;
+  padding:12px;
+  border-radius:12px;
+  background:#000;
+  color:#fff;
+  font-weight:600;
+  cursor:pointer;
+}
+
+/* WIN */
 .win{
   color:#00ffd5;
 }
@@ -50,6 +121,8 @@ body{
 </head>
 
 <body>
+
+<div class="header">AlphaScope</div>
 
 <div class="tab">
   <button id="liveBtn" class="active">LIVE</button>

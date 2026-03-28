@@ -2,58 +2,68 @@ const API_URL = "https://alphascope-z4rz.onrender.com";
 
 let mode = "live";
 
-// SWITCH
-document.getElementById("liveBtn").onclick = ()=>{
-  mode = "live";
-  render();
-};
+// FETCH
+async function fetchDaily(){
+  const r = await fetch(`${API_URL}/daily`);
+  return await r.json();
+}
 
-document.getElementById("historyBtn").onclick = ()=>{
-  mode = "history";
-  render();
-};
-
-// FETCH LIVE
 async function fetchLive(){
   const r = await fetch(`${API_URL}/early`);
   const d = await r.json();
   return d.signals || [];
 }
 
-// FETCH HISTORY
 async function fetchHistory(){
   const r = await fetch(`${API_URL}/history`);
   const d = await r.json();
   return d.history || [];
 }
 
+// CLICK
+function openChart(s){
+  const url = `https://dexscreener.com/${s.chain}/${s.pairAddress}`;
+  window.open(url);
+}
+
 // RENDER
 async function render(){
 
   const el = document.getElementById("content");
+  el.innerHTML = "Loading...";
+
+  const daily = await fetchDaily();
+
+  // 📊 DASHBOARD
+  let dashboard = `
+    <div style="padding:12px;border-radius:12px;background:#0f172a;margin-bottom:12px;">
+      📊 <b>Today’s Performance</b><br><br>
+      💰 Total: <b>${daily.totalPnl}%</b><br>
+      🎯 Win Rate: <b>${daily.winRate}%</b><br>
+      🔥 Best Trade: <b>+${daily.best}%</b><br>
+      📈 Signals: <b>${daily.total}</b>
+    </div>
+  `;
 
   if(mode === "live"){
-    el.innerHTML = "Loading...";
     const signals = await fetchLive();
 
-    el.innerHTML = signals.map(s=>`
-      <div class="card">
+    el.innerHTML = dashboard + signals.map((s,i)=>`
+      <div class="card" onclick='openChart(${JSON.stringify(s)})' style="cursor:pointer">
         <b>${s.token}</b> (${s.symbol})<br>
         ${s.chain.toUpperCase()}<br>
-        PnL: <span class="${s.isWin?'win':''}">${s.pnl}%</span>
+        📈 <span style="color:${s.isWin?"#00ffd5":"#ef4444"}">${s.pnl}%</span>
       </div>
     `).join("");
   }
 
   if(mode === "history"){
-    el.innerHTML = "Loading...";
     const history = await fetchHistory();
 
-    el.innerHTML = history.map(h=>`
+    el.innerHTML = dashboard + history.map(h=>`
       <div class="card">
         🔥 ${h.token} (${h.symbol})<br>
-        ${h.chain.toUpperCase()}<br>
-        📈 <span class="win">+${h.pnl}%</span>
+        📈 +${h.pnl}%
       </div>
     `).join("");
   }
@@ -61,3 +71,4 @@ async function render(){
 
 // INIT
 render();
+setInterval(render,10000);

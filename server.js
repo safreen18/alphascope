@@ -8,18 +8,41 @@ app.use(express.json());
 
 const PORT = 3000;
 
-// 🧠 MEMORY DATABASE
+// 🧠 MEMORY
 let trackedSignals = {};
 let history = [];
+let dailyStats = {
+  date: new Date().toDateString(),
+  totalPnl: 0,
+  wins: 0,
+  total: 0,
+  best: 0
+};
 
 // USER
 app.get("/user", (req, res) => {
   res.json({ userId: "guest", tier: "free" });
 });
 
+// RESET DAILY
+function resetDaily(){
+  const today = new Date().toDateString();
+  if(dailyStats.date !== today){
+    dailyStats = {
+      date: today,
+      totalPnl: 0,
+      wins: 0,
+      total: 0,
+      best: 0
+    };
+  }
+}
+
 // 🚀 SIGNAL ENGINE
 app.get("/early", async (req, res) => {
   try {
+
+    resetDaily();
 
     const queries = ["ethereum", "bnb", "solana"];
     let allPairs = [];
@@ -47,41 +70,39 @@ app.get("/early", async (req, res) => {
       if (!chain) return;
 
       const id = p.pairAddress;
-      const currentPrice = parseFloat(p.priceUsd) || 0;
+      const price = parseFloat(p.priceUsd) || 0;
 
-      // 🧠 TRACK ENTRY
       if (!trackedSignals[id]) {
         trackedSignals[id] = {
-          entryPrice: currentPrice,
-          createdAt: Date.now(),
-          token: p.baseToken?.name,
-          symbol: p.baseToken?.symbol,
-          chain
+          entryPrice: price,
+          createdAt: Date.now()
         };
       }
 
       const entry = trackedSignals[id].entryPrice;
-      const pnl = ((currentPrice - entry) / entry) * 100;
+      const pnl = ((price - entry) / entry) * 100;
 
-      // 🔥 ADD TO HISTORY IF BIG MOVE
+      // DAILY STATS UPDATE
+      dailyStats.total++;
+      dailyStats.totalPnl += pnl;
+      if(pnl > 0) dailyStats.wins++;
+      if(pnl > dailyStats.best) dailyStats.best = pnl;
+
+      // HISTORY
       if (pnl > 10 && !history.find(h => h.id === id)) {
         history.push({
           id,
           token: p.baseToken?.name,
           symbol: p.baseToken?.symbol,
           chain,
-          pnl: pnl.toFixed(2),
-          time: Date.now()
+          pnl: pnl.toFixed(2)
         });
-
-        // LIMIT HISTORY SIZE
-        if (history.length > 50) history.shift();
       }
 
       grouped[chain].push({
         token: p.baseToken?.name,
         symbol: p.baseToken?.symbol,
-        price: currentPrice,
+        price,
         volume24h: volume,
         liquidity,
         chain,
@@ -96,13 +117,13 @@ app.get("/early", async (req, res) => {
       grouped[chain].sort((a,b)=>b.score-a.score);
     });
 
-    const finalSignals = [
+    const signals = [
       ...grouped.ethereum.slice(0,3),
       ...grouped.bsc.slice(0,3),
       ...grouped.solana.slice(0,3)
     ];
 
-    res.json({ signals: finalSignals });
+    res.json({ signals });
 
   } catch (err) {
     console.log(err);
@@ -110,9 +131,24 @@ app.get("/early", async (req, res) => {
   }
 });
 
-// 📊 HISTORY ENDPOINT
+// 📊 HISTORY
 app.get("/history", (req, res) => {
   res.json({ history: history.reverse() });
+});
+
+// 📈 DAILY DASHBOARD
+app.get("/daily", (req, res) => {
+
+  const winRate = dailyStats.total
+    ? ((dailyStats.wins / dailyStats.total) * 100).toFixed(1)
+    : 0;
+
+  res.json({
+    totalPnl: dailyStats.totalPnl.toFixed(2),
+    winRate,
+    best: dailyStats.best.toFixed(2),
+    total: dailyStats.total
+  });
 });
 
 // SCORE
@@ -148,4 +184,4 @@ app.get("/create-payment", (req, res) => {
   res.redirect("https://nowpayments.io/payment/?iid=example");
 });
 
-app.listen(PORT, () => console.log("📊 TRACK RECORD ENGINE LIVE"));
+app.listen(PORT, () => console.log("📊 DAILY PROFITS ENGINE LIVE"));
