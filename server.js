@@ -8,9 +8,14 @@ app.use(express.json());
 
 const PORT = 3000;
 
+// ENV
+const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
+
 // 🧠 MEMORY
 let trackedSignals = {};
 let history = [];
+
 let dailyStats = {
   date: new Date().toDateString(),
   totalPnl: 0,
@@ -18,11 +23,6 @@ let dailyStats = {
   total: 0,
   best: 0
 };
-
-// USER
-app.get("/user", (req, res) => {
-  res.json({ userId: "guest", tier: "free" });
-});
 
 // RESET DAILY
 function resetDaily(){
@@ -37,6 +37,11 @@ function resetDaily(){
     };
   }
 }
+
+// USER
+app.get("/user", (req, res) => {
+  res.json({ userId: "guest", tier: "free" });
+});
 
 // 🚀 SIGNAL ENGINE
 app.get("/early", async (req, res) => {
@@ -82,7 +87,7 @@ app.get("/early", async (req, res) => {
       const entry = trackedSignals[id].entryPrice;
       const pnl = ((price - entry) / entry) * 100;
 
-      // DAILY STATS UPDATE
+      // UPDATE DAILY
       dailyStats.total++;
       dailyStats.totalPnl += pnl;
       if(pnl > 0) dailyStats.wins++;
@@ -131,12 +136,7 @@ app.get("/early", async (req, res) => {
   }
 });
 
-// 📊 HISTORY
-app.get("/history", (req, res) => {
-  res.json({ history: history.reverse() });
-});
-
-// 📈 DAILY DASHBOARD
+// 📊 DAILY ENDPOINT
 app.get("/daily", (req, res) => {
 
   const winRate = dailyStats.total
@@ -150,6 +150,52 @@ app.get("/daily", (req, res) => {
     total: dailyStats.total
   });
 });
+
+// 📊 HISTORY
+app.get("/history", (req, res) => {
+  res.json({ history: history.reverse() });
+});
+
+// 🚀 SEND TELEGRAM REPORT
+async function sendTelegramReport(){
+
+  if(!TELEGRAM_TOKEN || !CHAT_ID) return;
+
+  const winRate = dailyStats.total
+    ? ((dailyStats.wins / dailyStats.total) * 100).toFixed(1)
+    : 0;
+
+  const msg = `
+📊 <b>AlphaScope Daily Report</b>
+
+💰 Total Profit: ${dailyStats.totalPnl.toFixed(2)}%
+🎯 Win Rate: ${winRate}%
+🔥 Best Trade: +${dailyStats.best.toFixed(2)}%
+📈 Signals: ${dailyStats.total}
+
+━━━━━━━━━━━━━━━
+This is what you missed today.
+
+Upgrade to catch tomorrow’s moves early 🚀
+`;
+
+  try{
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        text: msg,
+        parse_mode:"HTML"
+      })
+    });
+  }catch(e){
+    console.log("Telegram report error", e);
+  }
+}
+
+// ⏰ RUN DAILY (EVERY 24H)
+setInterval(sendTelegramReport, 86400000);
 
 // SCORE
 function calculateScore(liq, vol){
@@ -184,4 +230,4 @@ app.get("/create-payment", (req, res) => {
   res.redirect("https://nowpayments.io/payment/?iid=example");
 });
 
-app.listen(PORT, () => console.log("📊 DAILY PROFITS ENGINE LIVE"));
+app.listen(PORT, () => console.log("📩 DAILY REPORT ENGINE LIVE"));
