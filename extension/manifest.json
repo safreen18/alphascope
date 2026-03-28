@@ -2,17 +2,20 @@
   "manifest_version": 3,
   "name": "AlphaScope",
   "version": "1.0",
-  "description": "Elite crypto signal intelligence",
-
-  "action": {
-    "default_popup": "popup.html"
-  },
-
+  "description": "Smart Money Crypto Signals",
   "permissions": [
+    "notifications",
+    "alarms",
     "storage"
   ],
-
   "host_permissions": [
-    "https://alphascope-z4rz.onrender.com/*"
-  ]
+    "https://alphascope-z4rz.onrender.com/*",
+    "https://dexscreener.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
 }
