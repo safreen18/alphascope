@@ -1,136 +1,55 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>AlphaScope</title>
-
-<style>
-body{
-  margin:0;
-  width:360px;
-  padding:16px;
-  background:radial-gradient(circle at top,#0f172a,#020617);
-  color:#fff;
-  font-family:Inter;
-}
-
-/* HEADER */
-.header{
-  margin-bottom:10px;
-  font-weight:600;
-}
-
-/* TABS */
-.tab{
-  display:flex;
-  gap:6px;
-  margin-bottom:12px;
-}
-
-.tab button{
-  flex:1;
-  padding:8px;
-  border:none;
-  border-radius:10px;
-  background:#111;
-  color:#aaa;
-  cursor:pointer;
-}
-
-.tab button.active{
-  background:#00ffd5;
-  color:#000;
-}
-
-/* CARD */
-.card{
-  padding:14px;
-  border-radius:14px;
-  background:rgba(255,255,255,0.04);
-  margin-bottom:12px;
-  position:relative;
-}
-
-/* LOCK */
-.locked{
-  filter:blur(3px);
-  opacity:0.6;
-}
-
-.lock-overlay{
-  position:absolute;
-  inset:0;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  font-size:12px;
-  background:rgba(0,0,0,0.6);
-  border-radius:14px;
-}
-
-/* INSIGHT */
-.insight{
-  margin-top:8px;
-  font-size:12px;
-  line-height:1.4;
-}
-
-/* URGENCY BOX */
-.urgency{
-  margin-top:14px;
-  padding:14px;
-  border-radius:14px;
-  background:linear-gradient(90deg,#ef4444,#f97316);
-  text-align:center;
-  animation:pulse 1.5s infinite;
-}
-
-@keyframes pulse{
-  0%{transform:scale(1);}
-  50%{transform:scale(1.02);}
-  100%{transform:scale(1);}
-}
-
-.timer{
-  font-size:18px;
-  font-weight:700;
-}
-
-.spots{
-  font-size:12px;
-  margin-top:4px;
-}
-
-/* CTA */
-.cta{
-  margin-top:10px;
-  padding:12px;
-  border-radius:12px;
-  background:#000;
-  color:#fff;
-  font-weight:600;
-  cursor:pointer;
-}
-
-/* WIN */
-.win{
-  color:#00ffd5;
-}
-
-</style>
+  <meta charset="UTF-8">
+  <title>AlphaScope Terminal</title>
+  <link rel="stylesheet" href="popup.css">
 </head>
-
 <body>
 
-<div class="header">AlphaScope</div>
+<div id="terminal">
 
-<div class="tab">
-  <button id="liveBtn" class="active">LIVE</button>
-  <button id="historyBtn">TRACK RECORD</button>
+  <div id="header">
+    <h2>AlphaScope Terminal</h2>
+    <span id="status">● LIVE</span>
+  </div>
+
+  <div id="main">
+
+    <div id="graph-container">
+      <svg id="graph"></svg>
+    </div>
+
+    <div id="side-panel">
+
+      <div class="panel">
+        <h3>Wallet</h3>
+        <div id="wallet-info">Select a node</div>
+      </div>
+
+      <div class="panel">
+        <h3>Signals</h3>
+        <div id="signals"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Copy Trades</h3>
+        <div id="copy-feed"></div>
+      </div>
+
+      <!-- 🔥 NEW PANEL -->
+      <div class="panel">
+        <h3>Top Wallets</h3>
+        <div id="wallet-stats"></div>
+      </div>
+
+    </div>
+
+  </div>
+
 </div>
 
-<div id="content"></div>
-
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="popup.js"></script>
 
 </body>

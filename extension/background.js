@@ -1,62 +1,17 @@
-const API_URL = "https://alphascope-z4rz.onrender.com";
+let latestSignals = [];
 
-let seenSignals = new Set();
+const ws = new WebSocket("ws://localhost:3000");
 
-// ⏱ CHECK EVERY 15 SECONDS
-chrome.alarms.create("signalCheck", { periodInMinutes: 0.25 });
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
 
-// FETCH SIGNALS
-async function fetchSignals(){
-  try{
-    const res = await fetch(`${API_URL}/early`);
-    const data = await res.json();
-
-    const signals = data.signals || [];
-
-    signals.forEach(s => {
-
-      const id = s.pairAddress;
-
-      if(!seenSignals.has(id)){
-        seenSignals.add(id);
-
-        sendNotification(s);
-      }
-
-    });
-
-  }catch(e){
-    console.log("Error fetching signals", e);
+  if (data.type === "SIGNALS_UPDATE") {
+    latestSignals = data.data;
   }
-}
+};
 
-// 🔔 SEND NOTIFICATION
-function sendNotification(s){
-
-  const url = `https://dexscreener.com/${s.chain}/${s.pairAddress}`;
-
-  chrome.notifications.create({
-    type: "basic",
-    iconUrl: "icon.png",
-    title: `🚨 ${s.symbol} (${s.chain.toUpperCase()})`,
-    message: `🔥 New Smart Money Signal\nScore: ${s.score}\nClick to view chart`,
-    priority: 2
-  }, (notificationId) => {
-
-    // CLICK HANDLER
-    chrome.notifications.onClicked.addListener(() => {
-      chrome.tabs.create({ url });
-    });
-
-  });
-}
-
-// RUN ON ALARM
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if(alarm.name === "signalCheck"){
-    fetchSignals();
+chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
+  if (req.type === "GET_SIGNALS") {
+    sendResponse({ signals: latestSignals });
   }
 });
-
-// INITIAL RUN
-fetchSignals();

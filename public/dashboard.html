@@ -1,135 +1,118 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>AlphaScope Dashboard</title>
-
+<title>AlphaScope Terminal</title>
 <style>
-body {
-  margin: 0;
-  font-family: Inter, sans-serif;
-  background: #020617;
-  color: #e2e8f0;
-}
+body { background:#050507; color:#fff; font-family:Inter; }
 
-/* HEADER */
-.header {
-  display: flex;
-  justify-content: space-between;
-  padding: 16px 24px;
-  border-bottom: 1px solid #1e293b;
-}
-
-.logo {
-  font-size: 20px;
-  font-weight: bold;
-  color: #38bdf8;
-}
-
-.status {
-  color: #22c55e;
-}
-
-/* GRID */
-.container {
-  padding: 20px;
-}
+.top { display:flex; justify-content:space-between; padding:15px; }
 
 .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 20px;
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+  gap:20px; padding:20px;
 }
 
-/* CARD */
 .card {
-  background: rgba(15,23,42,0.6);
-  border-radius: 16px;
-  padding: 16px;
-  border: 1px solid rgba(148,163,184,0.1);
-  transition: 0.2s;
+  background:#0d0d14;
+  padding:15px;
+  border-radius:12px;
 }
 
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 0 20px rgba(56,189,248,0.2);
+.locked {
+  filter:blur(4px);
+  text-align:center;
 }
 
-.token {
-  font-size: 16px;
-  font-weight: bold;
-  color: #38bdf8;
+.tag {
+  font-size:10px;
+  background:#111;
+  padding:3px 6px;
+  margin:2px;
 }
 
-.sub {
-  font-size: 12px;
-  color: #64748b;
+.green { color:#00ffa3; }
+.red { color:#ff4d4d; }
+
+button {
+  background:linear-gradient(90deg,#00ffa3,#00c3ff);
+  padding:10px;
+  border:none;
+  cursor:pointer;
 }
 
-.metric {
-  margin-top: 8px;
-  font-size: 13px;
+.wins {
+  padding:10px;
+  border-top:1px solid #111;
 }
-
-/* BADGE */
-.badge {
-  margin-top: 10px;
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-}
-
-.A { background: #16a34a; }
-.B { background: #f59e0b; }
-.C { background: #ef4444; }
-
 </style>
 </head>
 
 <body>
 
-<div class="header">
-  <div class="logo">AlphaScope</div>
-  <div class="status">LIVE SIGNALS</div>
+<div class="top">
+  <h2>AlphaScope</h2>
+  <button onclick="upgrade()">Unlock Premium</button>
 </div>
 
-<div class="container">
-  <div id="grid" class="grid"></div>
-</div>
+<div id="wins" class="wins"></div>
+<div class="grid" id="grid"></div>
 
 <script>
-const API = "/early?userId=dashboard";
+const userId = localStorage.getItem("userId") || Date.now();
+localStorage.setItem("userId", userId);
 
-async function load() {
-  const res = await fetch(API);
-  const data = await res.json();
+async function upgrade(){
+  const r = await fetch("/create-payment",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({userId})
+  });
+  const d = await r.json();
+  if(d.url) window.location.href = d.url;
+}
+
+async function load(){
+  const r = await fetch(`/early?userId=${userId}`);
+  const d = await r.json();
 
   const grid = document.getElementById("grid");
+  const wins = document.getElementById("wins");
+
+  wins.innerHTML = "<b>Recent Wins:</b> " +
+    d.recentWins.map(w => `${w.symbol} +${w.pnl}%`).join(" | ");
+
   grid.innerHTML = "";
 
-  data.signals.forEach(t => {
-    const div = document.createElement("div");
-    div.className = "card";
+  d.signals.forEach(s=>{
+    const el = document.createElement("div");
+    el.className = "card";
 
-    div.innerHTML = `
-      <div class="token">${t.token}</div>
-      <div class="sub">${t.symbol} • ${t.chain}</div>
+    if (s.locked) {
+      el.classList.add("locked");
+      el.innerHTML = `
+        🔒 Premium Signal
+        <br><br>
+        Unlock to see this alpha
+      `;
+    } else {
+      const pnlClass = s.pnl >= 0 ? "green" : "red";
 
-      <div class="metric">Price: $${t.price}</div>
-      <div class="metric">Liquidity: $${t.liquidity}</div>
-      <div class="metric">Volume: $${t.volume24h}</div>
-      <div class="metric">Whales: ${t.whaleCount}</div>
+      el.innerHTML = `
+        <b>${s.token} (${s.symbol})</b><br>
+        Score: ${s.score}<br>
+        Price: $${s.price}<br>
+        PnL: <span class="${pnlClass}">${s.pnl}%</span><br>
+        Age: ${s.age}m<br>
+        ${s.tags.map(t=>`<span class="tag">${t}</span>`).join("")}
+      `;
+    }
 
-      <div class="badge ${t.confidence}">
-        ${t.confidence}
-      </div>
-    `;
-
-    grid.appendChild(div);
+    grid.appendChild(el);
   });
 }
 
+setInterval(load,4000);
 load();
 </script>
 

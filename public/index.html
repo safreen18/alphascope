@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AlphaScope Terminal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <style>
+    body {
+      margin: 0;
+      background: #05070a;
+      color: #d6d9e0;
+      font-family: ui-sans-serif, system-ui;
+      overflow-x: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: #0b0f14;
+      border-bottom: 1px solid #1c2430;
+      position: sticky;
+      top: 0;
+    }
+
+    .title {
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #7dd3fc;
+    }
+
+    .status {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    .container {
+      padding: 20px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .card {
+      background: linear-gradient(145deg, #0b0f14, #070a0f);
+      border: 1px solid #1c2430;
+      border-radius: 10px;
+      padding: 14px;
+      transition: 0.2s;
+    }
+
+    .card:hover {
+      transform: scale(1.01);
+      border-color: #334155;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .symbol {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .score {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .meta {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 8px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 5px;
+      border: 1px solid #334155;
+      color: #93c5fd;
+    }
+
+    .legendary { color: #22c55e; }
+    .smart { color: #facc15; }
+    .early { color: #38bdf8; }
+
+    .locked {
+      filter: blur(6px);
+      opacity: 0.4;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="topbar">
+    <div class="title">ALPHASCOPE TERMINAL</div>
+    <div class="status" id="status">LIVE • CONNECTING...</div>
+  </div>
+
+  <div class="container">
+    <div class="grid" id="grid"></div>
+  </div>
+
+<script>
+async function fetchSignals() {
+  const res = await fetch("/early?userId=guest");
+  const data = await res.json();
+  return data.signals || [];
+}
+
+function getScoreColor(score) {
+  if (score > 85) return "#22c55e";
+  if (score > 70) return "#facc15";
+  return "#38bdf8";
+}
+
+function getLabel(signal) {
+  if (signal.classification?.includes("LEGENDARY")) return "legendary";
+  if (signal.classification?.includes("SMART")) return "smart";
+  return "early";
+}
+
+function render(signals) {
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+
+  signals.forEach(s => {
+    const div = document.createElement("div");
+    div.className = "card";
+
+    if (s.locked) {
+      div.classList.add("locked");
+      div.innerHTML = `<div>🔒 PREMIUM SIGNAL LOCKED</div>`;
+      grid.appendChild(div);
+      return;
+    }
+
+    const color = getScoreColor(s.score);
+    const label = getLabel(s);
+
+    div.innerHTML = `
+      <div class="row">
+        <div class="symbol">${s.symbol}</div>
+        <div class="score" style="color:${color}">
+          ${s.score.toFixed(1)}
+        </div>
+      </div>
+
+      <div class="meta">
+        <span class="badge">${s.classification}</span>
+        <span>Price: $${s.price}</span>
+        <span>PNL: ${s.pnl}%</span>
+        <span>Vol: ${s.volume}</span>
+        <span>Liq: ${s.liquidity}</span>
+      </div>
+
+      <div class="meta">
+        <span class="badge">🐋 Whale: ${s.whaleScore?.toFixed?.(1) || 0}</span>
+        <span class="badge">🧠 Smart: ${s.smartBoost?.toFixed?.(1) || 0}</span>
+        <span class="badge">⚡ Copy: ${s.copyBoost?.toFixed?.(1) || 0}</span>
+        <span class="badge">⏱ ${s.age}m ago</span>
+      </div>
+    `;
+
+    grid.appendChild(div);
+  });
+}
+
+async function loop() {
+  try {
+    const signals = await fetchSignals();
+    render(signals);
+    document.getElementById("status").innerText = "LIVE • UPDATED";
+  } catch {
+    document.getElementById("status").innerText = "ERROR • RECONNECTING...";
+  }
+}
+
+loop();
+setInterval(loop, 5000);
+</script>
+
+</body>
+</html>
